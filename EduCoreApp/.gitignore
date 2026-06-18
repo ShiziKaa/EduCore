@@ -1,0 +1,64 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# --- EduCore_DB (see root .gitignore; duplicated for standalone clone of EduCore/) ---
+assets/EduCore_DB/search_engine.exe
+assets/EduCore_DB/_internal/
+assets/EduCore_DB/database_builder/
+assets/EduCore_DB/models/**
+!assets/EduCore_DB/models/.gitkeep
+assets/EduCore_DB/chroma_db/**
+!assets/EduCore_DB/chroma_db/.gitkeep
+assets/EduCore_DB/data/**
+!assets/EduCore_DB/data/.gitkeep
+assets/EduCore_DB/images/**
+!assets/EduCore_DB/images/.gitkeep
+assets/EduCore_DB/videos/**
+!assets/EduCore_DB/videos/.gitkeep
+assets/EduCore_DB/institute_logo.*
+
+# Runtime institute logo
+**/institute_logo.*

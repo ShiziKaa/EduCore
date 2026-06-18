@@ -1,0 +1,101 @@
+# =============================================================================
+# EduCore monorepo — keep secrets, binaries, models, and build output out of git
+# =============================================================================
+
+# --- OS & editors ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# --- Secrets & credentials (never commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.json
+**/HF_TOKEN*
+**/*token*.json
+
+# Institute / user uploads (runtime data)
+**/institute_logo.*
+**/institute_logo/**
+
+# Git metadata must not be packaged or committed inside bundles
+**/.git/
+**/.git/**
+
+# --- Release / installer output ---
+EduCore_Release/
+installer-output/
+Output/
+*.iss.bak
+
+# --- Python (PythonBack) ---
+PythonBack/__pycache__/
+PythonBack/**/__pycache__/
+PythonBack/**/*.pyc
+PythonBack/.venv/
+PythonBack/venv/
+PythonBack/.pytest_cache/
+PythonBack/.mypy_cache/
+PythonBack/.ruff_cache/
+PythonBack/build/
+PythonBack/dist/
+PythonBack/**/*.egg-info/
+
+# Local Chroma index (rebuilt by scripts)
+PythonBack/chroma_db/*
+!PythonBack/chroma_db/.gitkeep
+
+# --- EduCore Flutter build artifacts ---
+EduCore/.dart_tool/
+EduCore/.pub-cache/
+EduCore/.pub/
+EduCore/build/
+EduCore/coverage/
+EduCore/.flutter-plugins
+EduCore/.flutter-plugins-dependencies
+
+# --- EduCore_DB AI bundle (generated locally, multi-GB) ---
+# Keep only folder structure via .gitkeep files.
+EduCore/assets/EduCore_DB/search_engine.exe
+EduCore/assets/EduCore_DB/_internal/
+EduCore/assets/EduCore_DB/database_builder/
+
+EduCore/assets/EduCore_DB/models/**
+!EduCore/assets/EduCore_DB/models/.gitkeep
+
+EduCore/assets/EduCore_DB/chroma_db/**
+!EduCore/assets/EduCore_DB/chroma_db/.gitkeep
+
+EduCore/assets/EduCore_DB/data/**
+!EduCore/assets/EduCore_DB/data/.gitkeep
+
+EduCore/assets/EduCore_DB/images/**
+!EduCore/assets/EduCore_DB/images/.gitkeep
+
+EduCore/assets/EduCore_DB/videos/**
+!EduCore/assets/EduCore_DB/videos/.gitkeep
+
+# Also ignore if bundle appears next to build output
+EduCore/build/**/EduCore_DB/
+
+# --- Large / generated media in synced asset folders (optional dev copies) ---
+# Sample images for dev live in PythonBack/images/ and are tracked there.
+
+# --- Logs & temp ---
+*.log
+*.tmp
+*.temp
+.cache/
