@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
 $PythonBack = Join-Path $Root "PythonBack"
-$FlutterApp = Join-Path $Root "EduCore"
+$FlutterApp = Join-Path $Root "EduCoreApp"
 $DbRoot = Join-Path $FlutterApp "assets\EduCore_DB"
 $SearchDist = Join-Path $PythonBack "dist\search_engine"
 $BuilderDist = Join-Path $PythonBack "dist\database_builder"
@@ -22,7 +22,13 @@ foreach ($folder in @("data", "images", "videos", "chroma_db", "models")) {
 }
 
 Write-Host "==> Syncing search_engine bundle into assets..." -ForegroundColor Cyan
-powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "sync_search_engine.ps1")
+$DistExe = Join-Path $PythonBack "dist\search_engine\search_engine.exe"
+if (-not (Test-Path $DistExe)) {
+    Write-Host "search_engine.exe not found. Building with PyInstaller..." -ForegroundColor Yellow
+    powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build_search_engine.ps1")
+} else {
+    powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "sync_search_engine.ps1")
+}
 
 if (Test-Path $DataSource) {
     Write-Host "==> Copying starter data..." -ForegroundColor Cyan
@@ -59,4 +65,4 @@ Pop-Location
 Write-Host ""
 Write-Host "Done. EduCore_DB assets are ready at:" -ForegroundColor Green
 Write-Host $DbRoot -ForegroundColor Green
-Write-Host "Next: cd EduCore && flutter build windows" -ForegroundColor Green
+Write-Host "Next: cd EduCoreApp && flutter build windows" -ForegroundColor Green

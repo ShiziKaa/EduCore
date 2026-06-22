@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
 $PythonBack = Join-Path $Root "PythonBack"
-$DbRoot = Join-Path $Root "EduCore\assets\EduCore_DB"
+$DbRoot = Join-Path $Root "EduCoreApp\assets\EduCore_DB"
 $ModelsPath = Join-Path $DbRoot "models"
 
 if (-not (Test-Path $DbRoot)) {
@@ -28,4 +28,4 @@ Pop-Location
 $sizeGb = (Get-ChildItem $ModelsPath -Recurse -File | Measure-Object Length -Sum).Sum / 1GB
 Write-Host ""
 Write-Host "Model ready in assets/EduCore_DB/models ($([math]::Round($sizeGb, 2)) GB)" -ForegroundColor Green
-Write-Host "Now run: cd EduCore && flutter build windows" -ForegroundColor Green
+Write-Host "Now run: cd EduCoreApp && flutter build windows" -ForegroundColor Green

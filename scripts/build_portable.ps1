@@ -1,12 +1,22 @@
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
-$FlutterApp = Join-Path $Root "EduCore"
+$FlutterApp = Join-Path $Root "EduCoreApp"
+$ModelsPath = Join-Path $FlutterApp "assets\EduCore_DB\models"
 
-Write-Host "==> Step 1: Prepare EduCore_DB assets" -ForegroundColor Cyan
-powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "setup_educore_db.ps1")
+Write-Host "==> Step 1: Rebuild search_engine.exe and sync assets" -ForegroundColor Cyan
+powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build_search_engine.ps1")
 
-Write-Host "==> Step 2: Build Flutter Windows release" -ForegroundColor Cyan
+Write-Host "==> Step 2: Checking model in assets..." -ForegroundColor Cyan
+$size = (Get-ChildItem $ModelsPath -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+if ($size -lt 500MB) {
+    Write-Host "Model missing or incomplete. Running download_model.ps1..." -ForegroundColor Yellow
+    powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "download_model.ps1")
+} else {
+    Write-Host "Model OK: $([math]::Round($size/1GB, 2)) GB in assets/EduCore_DB/models" -ForegroundColor Green
+}
+
+Write-Host "==> Step 3: Build Flutter Windows release" -ForegroundColor Cyan
 Push-Location $FlutterApp
 flutter pub get
 flutter build windows --release

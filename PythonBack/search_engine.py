@@ -1,6 +1,7 @@
 import os
 import sys
 import shutil
+import uuid
 
 os.environ.setdefault("PYTHONUTF8", "1")
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
@@ -16,12 +17,20 @@ elif hasattr(sys.stdout, "buffer"):
         sys.stdout.buffer, encoding="utf-8", line_buffering=True
     )
 
-from fastapi import BackgroundTasks, FastAPI, File, Query, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Query, UploadFile, HTTPException
+from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import chromadb
 import uvicorn
 
-from database_builder import build_database, extract_media_tags
+from database_builder import build_database, extract_news_metadata
+from document_admin import (
+    create_draft_from_file,
+    drafts_dir,
+    finalize_draft,
+    load_draft,
+    update_paragraph,
+)
 
 app = FastAPI(title="EduCore AI Reactive Engine")
 
@@ -95,7 +104,7 @@ def search_api(query: str = Query(..., description="Вопрос от студе
         found_text = results["documents"][0][0]
         distance = results["distances"][0][0]
 
-        clean_text, parsed_meta = extract_media_tags(found_text)
+        clean_text, parsed_meta = extract_news_metadata(found_text)
         found_text = clean_text
 
         images: list[str] = []
@@ -177,6 +186,104 @@ def run_database_builder():
 async def build_database_endpoint(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_database_builder)
     return {"status": "started", "message": "Gözleg bazasy täzelenýär..."}
+
+
+class ParagraphUpdate(BaseModel):
+    text: str
+    images: list[str] = []
+    videos: list[str] = []
+    is_news: bool = False
+    news_preview: str | None = None
+
+
+@app.post("/admin/parse-document")
+async def admin_parse_document(file: UploadFile = File(...)):
+    filename = file.filename or "document.docx"
+    lower_name = filename.lower()
+    if not lower_name.endswith((".docx", ".xlsx", ".txt")):
+        raise HTTPException(
+            status_code=400,
+            detail="Diňe .docx, .xlsx we .txt faýllary goldanylýar.",
+        )
+
+    upload_path = os.path.join(
+        drafts_dir(base_dir), f"_upload_{uuid.uuid4().hex}_{filename}"
+    )
+    with open(upload_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        draft = create_draft_from_file(base_dir, upload_path, filename)
+    finally:
+        if os.path.isfile(upload_path):
+            os.remove(upload_path)
+
+    return draft
+
+
+@app.get("/admin/draft/{draft_id}")
+def admin_get_draft(draft_id: str):
+    try:
+        return load_draft(base_dir, draft_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.put("/admin/draft/{draft_id}/paragraphs/{index}")
+def admin_save_paragraph(draft_id: str, index: int, payload: ParagraphUpdate):
+    try:
+        return update_paragraph(base_dir, draft_id, index, payload.model_dump())
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except IndexError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/admin/draft/{draft_id}/finalize")
+def admin_finalize_draft(draft_id: str):
+    try:
+        return finalize_draft(base_dir, draft_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+MAX_NEWS_ITEMS = 15
+
+
+@app.get("/news")
+def news_api():
+    try:
+        all_data = collection.get(include=["documents", "metadatas"])
+    except Exception:
+        return {"items": []}
+
+    documents = all_data.get("documents") or []
+    metadatas = all_data.get("metadatas") or []
+    items: list[dict[str, str]] = []
+
+    for index, metadata in enumerate(metadatas):
+        if not metadata or metadata.get("is_news") != "true":
+            continue
+
+        preview = (metadata.get("news_preview") or "").strip()
+        if not preview:
+            continue
+
+        text = documents[index] if index < len(documents) else ""
+        if not text:
+            continue
+
+        items.append({"text": text, "preview": preview})
+
+    if len(items) > MAX_NEWS_ITEMS:
+        items = items[-MAX_NEWS_ITEMS:]
+
+    items.reverse()
+    return {"items": items}
 
 
 if __name__ == "__main__":

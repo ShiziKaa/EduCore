@@ -5,16 +5,22 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../../app/app_palette.dart';
 import '../../core/ai_core_paths.dart';
 import '../../core/ai_server_service.dart';
+import '../../core/models/news_item.dart';
+import '../../core/news_service.dart';
 import '../../core/search_service.dart';
+import '../../core/models/welcome_settings.dart';
+import '../../core/services/welcome_settings_service.dart';
 import '../../core/services/institute_logo_service.dart';
-import '../admin/admin_panel_screen.dart';
+import '../admin/admin_panel_route.dart';
 import '../shared/answer_images_reveal.dart';
 import '../shared/answer_videos_row.dart';
 import '../shared/background_glow.dart';
 import '../shared/developer_footer.dart';
 import '../shared/fullscreen_image_page.dart';
+import '../shared/news_carousel.dart';
 import '../shared/paragraph_shimmer.dart';
 import '../shared/streaming_answer_text.dart';
 import 'chat_bubbles.dart';
@@ -37,6 +43,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   final ScrollController _scrollController = ScrollController();
   final AiServerService _serverService = AiServerService();
   final SearchService _searchService = SearchService();
+  final NewsService _newsService = NewsService();
 
   bool _hasSearched = false;
   bool _isLoading = false;
@@ -52,6 +59,9 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   bool _showAnswerMedia = false;
   String? _aiCoreDirectory;
   File? _instituteLogo;
+  List<NewsItem> _newsItems = [];
+  String? _articlePreviewImage;
+  WelcomeSettings _welcomeSettings = WelcomeSettings.defaults;
 
   Timer? _streamingTimer;
   DateTime? _streamStartTime;
@@ -61,7 +71,27 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   void initState() {
     super.initState();
     _loadInstituteLogo();
+    _loadWelcomeSettings();
     _bootstrapServer();
+    _loadNews();
+  }
+
+  Future<void> _loadWelcomeSettings() async {
+    final settings = await WelcomeSettingsService.load();
+    if (!mounted) return;
+    setState(() => _welcomeSettings = settings);
+  }
+
+  Future<void> _loadNews() async {
+    try {
+      await _serverService.ensureRunning();
+      final items = await _newsService.fetchNews();
+      if (!mounted) return;
+      setState(() => _newsItems = items);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _newsItems = []);
+    }
   }
 
   void _loadInstituteLogo() {
@@ -86,11 +116,11 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   }
 
   Future<void> _openAdminPanel() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const AdminPanelScreen()),
-    );
+    await Navigator.of(context).push(buildAdminPanelRoute());
     if (!mounted) return;
     _loadInstituteLogo();
+    _loadWelcomeSettings();
+    _loadNews();
   }
 
   void _startStreamingText(String fullText) {
@@ -170,13 +200,23 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   }
 
   Future<void> _processSearch() async {
-    if (_isServerStarting) return;
+    await _runSearch(_controller.text.trim(), articlePreview: null);
+  }
 
-    final question = _controller.text.trim();
+  Future<void> _openNewsItem(NewsItem item) async {
+    final query = item.text.trim();
+    if (query.isEmpty) return;
+    await _runSearch(query, articlePreview: item.preview);
+  }
+
+  Future<void> _runSearch(String question, {String? articlePreview}) async {
+    if (_isServerStarting) return;
     if (question.isEmpty) return;
 
     setState(() {
-      _currentQuestion = question;
+      _currentQuestion = question.length > 120
+          ? '${question.substring(0, 120).trim()}...'
+          : question;
       _hasSearched = true;
       _isLoading = true;
       _isStreaming = false;
@@ -184,6 +224,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
       _answerImages = [];
       _answerVideos = [];
       _showAnswerMedia = false;
+      _articlePreviewImage = articlePreview;
       _autoScrollEnabled = true;
     });
     _controller.clear();
@@ -224,6 +265,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
       _answerVideos = [];
       _showAnswerMedia = false;
       _aiCoreDirectory = null;
+      _articlePreviewImage = null;
       _autoScrollEnabled = true;
     });
   }
@@ -300,25 +342,63 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
                 Expanded(
                   child: _hasSearched
                       ? _buildResultsLayout(colors, textTheme, searchEnabled)
-                      : Center(
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 96),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 720),
-                              child: WelcomeScreen(
-                                colors: colors,
-                                controller: _controller,
-                                focusNode: _searchFocus,
-                                enabled: searchEnabled,
-                                instituteLogo: _instituteLogo,
-                                onSearch: _processSearch,
-                                onQuickTag: (tag) {
-                                  _controller.text = tag;
-                                  _processSearch();
-                                },
-                              ),
-                            ),
-                          ),
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            final hasNews = _newsItems.isNotEmpty;
+                            final newsWidth = NewsCarousel.preferredWidth(
+                              constraints.maxWidth,
+                            );
+                            final newsCardHeight =
+                                NewsCarousel.preferredCardHeight(
+                              constraints.maxHeight,
+                            );
+
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Align(
+                                  alignment: Alignment.topCenter,
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      24,
+                                      12,
+                                      24,
+                                      96,
+                                    ),
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 720,
+                                      ),
+                                      child: WelcomeScreen(
+                                        colors: colors,
+                                        settings: _welcomeSettings,
+                                        controller: _controller,
+                                        focusNode: _searchFocus,
+                                        enabled: searchEnabled,
+                                        instituteLogo: _instituteLogo,
+                                        onSearch: _processSearch,
+                                        onQuickTag: (tag) {
+                                          _controller.text = tag;
+                                          _processSearch();
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (hasNews)
+                                  Positioned(
+                                    top: 0,
+                                    right: 12,
+                                    child: NewsCarousel(
+                                      items: _newsItems,
+                                      onItemTap: _openNewsItem,
+                                      width: newsWidth,
+                                      cardHeight: newsCardHeight,
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                 ),
               ],
@@ -364,7 +444,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
                   const SizedBox(height: 20),
                   Text(
                     starting
-                        ? 'AI serweri başladylýar...)'
+                        ? 'AI serweri başladylýar...'
                         : 'AI serweri işe başlap bilmedi:\n$error',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium,
@@ -437,6 +517,11 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
+                                      if (_articlePreviewImage != null)
+                                        _buildArticleHero(
+                                          colors,
+                                          isDark,
+                                        ),
                                       StreamingAnswerText(
                                         text: _streamingAnswer,
                                         isStreaming: _isStreaming,
@@ -492,6 +577,45 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildArticleHero(ColorScheme colors, bool isDark) {
+    final previewFile = _resolveImageFile(_articlePreviewImage!);
+    if (previewFile == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _openImageFullscreen(previewFile),
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: isDark
+                    ? AppPalette.darkQuickTag
+                    : AppPalette.lightQuickTag,
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF3C4043)
+                      : AppPalette.lightGreenBorder,
+                ),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 420,
+                  maxHeight: 280,
+                ),
+                child: Image.file(
+                  previewFile,
+                  fit: BoxFit.scaleDown,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

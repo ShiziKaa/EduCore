@@ -15,6 +15,8 @@ VIDEO_TAG_RE = re.compile(
     r"\[(?:videos?|vid|video)\s*:\s*([^\]]+)\]",
     re.IGNORECASE,
 )
+NEWS_TAG_RE = re.compile(r"\[news\]", re.IGNORECASE)
+PREVIEW_TAG_RE = re.compile(r"\[preview\s*:\s*([^\]]+)\]", re.IGNORECASE)
 
 
 def _split_media(raw: str) -> list[str]:
@@ -22,7 +24,24 @@ def _split_media(raw: str) -> list[str]:
 
 
 def extract_media_tags(text: str) -> tuple[str, dict[str, str]]:
-    return _extract_media_tags(text)
+    return extract_news_metadata(text)
+
+
+def extract_news_metadata(text: str) -> tuple[str, dict[str, str]]:
+    is_news = bool(NEWS_TAG_RE.search(text))
+    preview_match = PREVIEW_TAG_RE.search(text)
+    news_preview = preview_match.group(1).strip() if preview_match else ""
+
+    clean_text = PREVIEW_TAG_RE.sub("", text)
+    clean_text = NEWS_TAG_RE.sub("", clean_text)
+    clean_text, metadata = _extract_media_tags(clean_text)
+
+    if is_news:
+        metadata["is_news"] = "true"
+    if news_preview:
+        metadata["news_preview"] = news_preview
+
+    return clean_text, metadata
 
 
 def _extract_media_tags(text: str) -> tuple[str, dict[str, str]]:
@@ -56,7 +75,7 @@ def _read_txt(path: str) -> list[tuple[str, dict[str, str]]]:
         paragraph = paragraph.strip()
         if not paragraph:
             continue
-        clean_text, metadata = _extract_media_tags(paragraph)
+        clean_text, metadata = extract_news_metadata(paragraph)
         if clean_text:
             chunks.append((clean_text, metadata))
     return chunks
@@ -89,7 +108,7 @@ def _read_txt_from_string(raw_text: str) -> list[tuple[str, dict[str, str]]]:
         paragraph = paragraph.strip()
         if not paragraph:
             continue
-        clean_text, metadata = _extract_media_tags(paragraph)
+        clean_text, metadata = extract_news_metadata(paragraph)
         if clean_text:
             chunks.append((clean_text, metadata))
     return chunks

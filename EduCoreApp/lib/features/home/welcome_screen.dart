@@ -3,12 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../app/app_palette.dart';
+import '../../core/models/welcome_settings.dart';
 import 'search_bar_field.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({
     super.key,
     required this.colors,
+    required this.settings,
     required this.controller,
     required this.focusNode,
     required this.enabled,
@@ -18,6 +20,7 @@ class WelcomeScreen extends StatelessWidget {
   });
 
   final ColorScheme colors;
+  final WelcomeSettings settings;
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool enabled;
@@ -28,18 +31,6 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    const tags = [
-      'TDBSI',
-      'Fakultetler',
-      'Kafedralar',
-      'Kurslar',
-      'Dersler',
-      'Okuw tölegi',
-      'Geçen aýyň habarlary',
-      'Nyzam tertibi',
-      'Sport habarlary',
-      'Sosial media',
-    ];
 
     return Column(
       key: const ValueKey('welcome'),
@@ -58,13 +49,13 @@ class WelcomeScreen extends StatelessWidget {
           const SizedBox(height: 20),
         ],
         Text(
-          'Hormatly talyplar we myhmanlar!',
+          settings.title,
           textAlign: TextAlign.center,
           style: textTheme.headlineLarge,
         ),
         const SizedBox(height: 16),
         Text(
-          'Institutymyz baradaky islendik soragyňyzy aşakda ýazyp bilersiňiz.',
+          settings.subtitle,
           textAlign: TextAlign.center,
           style: textTheme.bodyMedium,
         ),
@@ -76,21 +67,23 @@ class WelcomeScreen extends StatelessWidget {
           enabled: enabled,
           onSubmitted: onSearch,
         ),
-        const SizedBox(height: 28),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 10,
-          runSpacing: 10,
-          children: tags
-              .map(
-                (tag) => _QuickTag(
-                  label: tag,
-                  colors: colors,
-                  onPressed: onQuickTag,
-                ),
-              )
-              .toList(),
-        ),
+        if (settings.quickTags.isNotEmpty) ...[
+          const SizedBox(height: 28),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 10,
+            runSpacing: 10,
+            children: settings.quickTags
+                .map(
+                  (tag) => _QuickTag(
+                    label: tag,
+                    colors: colors,
+                    onPressed: onQuickTag,
+                  ),
+                )
+                .toList(),
+          ),
+        ],
       ],
     );
   }

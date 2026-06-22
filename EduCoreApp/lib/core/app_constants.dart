@@ -4,15 +4,14 @@ class AppConstants {
   static const searchEngineExeName = 'search_engine.exe';
   static const developerName = 'Akmammedow Akmammet';
   static const developerEmail = 'shizikaa24@gmail.com';
+  static const allowedDocumentExtensions = ['docx', 'xlsx'];
+  static const allowedImageExtensions = ['jpg', 'jpeg', 'png', 'svg'];
+  static const allowedVideoExtensions = ['mp4', 'avi', 'mov', 'mkv'];
   static const allowedUploadExtensions = [
-    'docx',
-    'xlsx',
-    'jpg',
-    'jpeg',
-    'png',
-    'mp4',
-    'avi',
-    'mov',
+    ...allowedDocumentExtensions,
+    ...allowedImageExtensions,
+    ...allowedVideoExtensions,
   ];
   static const instituteLogoExtensions = ['png', 'jpg', 'jpeg'];
+  static const maxNewsItems = 15;
 }

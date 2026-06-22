@@ -81,7 +81,7 @@ class AiServerService {
       if (await _isHealthy()) return;
     }
 
-    throw StateError('AI serweri başlatylyp bilmedi.');
+    throw StateError('AI serweri başladylyp bilmedi.');
   }
 
   Future<bool> _isHealthy() async {
