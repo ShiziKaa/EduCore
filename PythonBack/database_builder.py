@@ -15,6 +15,10 @@ VIDEO_TAG_RE = re.compile(
     r"\[(?:videos?|vid|video)\s*:\s*([^\]]+)\]",
     re.IGNORECASE,
 )
+AUDIO_TAG_RE = re.compile(
+    r"\[(?:audios?|audio)\s*:\s*([^\]]+)\]",
+    re.IGNORECASE,
+)
 NEWS_TAG_RE = re.compile(r"\[news\]", re.IGNORECASE)
 PREVIEW_TAG_RE = re.compile(r"\[preview\s*:\s*([^\]]+)\]", re.IGNORECASE)
 
@@ -47,6 +51,7 @@ def extract_news_metadata(text: str) -> tuple[str, dict[str, str]]:
 def _extract_media_tags(text: str) -> tuple[str, dict[str, str]]:
     images: list[str] = []
     videos: list[str] = []
+    audios: list[str] = []
 
     for match in IMAGE_TAG_RE.finditer(text):
         images.extend(_split_media(match.group(1)))
@@ -54,7 +59,10 @@ def _extract_media_tags(text: str) -> tuple[str, dict[str, str]]:
     for match in VIDEO_TAG_RE.finditer(text):
         videos.extend(_split_media(match.group(1)))
 
-    clean_text = VIDEO_TAG_RE.sub("", IMAGE_TAG_RE.sub("", text))
+    for match in AUDIO_TAG_RE.finditer(text):
+        audios.extend(_split_media(match.group(1)))
+
+    clean_text = AUDIO_TAG_RE.sub("", VIDEO_TAG_RE.sub("", IMAGE_TAG_RE.sub("", text)))
     clean_text = re.sub(r"\n{3,}", "\n\n", clean_text).strip()
 
     metadata: dict[str, str] = {}
@@ -62,6 +70,8 @@ def _extract_media_tags(text: str) -> tuple[str, dict[str, str]]:
         metadata["images"] = ", ".join(dict.fromkeys(images))
     if videos:
         metadata["videos"] = ", ".join(dict.fromkeys(videos))
+    if audios:
+        metadata["audios"] = ", ".join(dict.fromkeys(audios))
 
     return clean_text, metadata
 

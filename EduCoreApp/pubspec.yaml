@@ -20,6 +20,8 @@ dependencies:
   window_manager: ^0.5.1
   carousel_slider: ^5.1.2
   smooth_page_indicator: ^2.0.1
+  audioplayers: ^6.1.0
+  o3d: ^3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -54,3 +56,4 @@ flutter:
 
   assets:
     - assets/icons/launcher_icon.png
+    - assets/avatar/avatar.glb

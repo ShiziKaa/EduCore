@@ -19,6 +19,7 @@ import 'admin_welcome_settings_panel.dart';
 import '../shared/background_glow.dart';
 
 enum _AdminMode { constructor, welcome }
+enum _MediaType { image, video, audio }
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -285,18 +286,22 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
   }
 
-  Future<void> _addMedia({required bool isVideo}) async {
+  Future<void> _addMedia({required _MediaType type}) async {
     final paragraph = _selectedParagraph;
     if (paragraph == null) {
       _showToast('Ilki abzas saýlaň.', error: true);
       return;
     }
 
+    final allowedExtensions = switch (type) {
+      _MediaType.video => AppConstants.allowedVideoExtensions,
+      _MediaType.audio => AppConstants.allowedAudioExtensions,
+      _MediaType.image => AppConstants.allowedImageExtensions,
+    };
+
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: isVideo
-          ? AppConstants.allowedVideoExtensions
-          : AppConstants.allowedImageExtensions,
+      allowedExtensions: allowedExtensions,
     );
 
     if (result == null || result.files.single.path == null) return;
@@ -312,14 +317,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       );
 
       setState(() {
-        if (isVideo) {
+        if (type == _MediaType.video) {
           paragraph.videos = [...paragraph.videos, filename];
+        } else if (type == _MediaType.audio) {
+          paragraph.audios = [...paragraph.audios, filename];
         } else {
           paragraph.images = [...paragraph.images, filename];
         }
         paragraph.isSaved = false;
       });
-      _showToast(isVideo ? 'Wideo goşuldy.' : 'Surat goşuldy.');
+      final msg = switch (type) {
+        _MediaType.video => 'Wideo goşuldy.',
+        _MediaType.audio => 'Audio goşuldy.',
+        _MediaType.image => 'Surat goşuldy.',
+      };
+      _showToast(msg);
     } catch (e) {
       _showToast(AdminMessages.friendlyError(e), error: true);
     } finally {
@@ -431,6 +443,60 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
   }
 
+  Future<void> _exportDatabase() async {
+    final savePath = await FilePicker.platform.saveFile(
+      dialogTitle: 'Bazany eksport et (Zip)',
+      fileName: 'EduCore_DB_Export.zip',
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+
+    if (savePath == null) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      await _ensureServer();
+      await _documentService.exportDatabase(savePath);
+      _showToast('Baza üstünlikli eksport edildi.');
+    } catch (e) {
+      _showToast(AdminMessages.friendlyError(e), error: true);
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _importDatabase() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+
+    if (result == null || result.files.single.path == null) return;
+
+    final confirmed = await showAdminConfirmDialog(
+      context,
+      title: 'Bazany import et',
+      message: 'Üns beriň! Häzirki baza doly öçürilip, täzesi bilen çalşyrylar. Dowam etmeli mi?',
+      confirmLabel: 'Import et',
+    );
+    if (!confirmed || !mounted) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      await _ensureServer();
+      final file = result.files.single;
+      await _documentService.importDatabase(file.path!, file.name);
+      _showToast('Baza üstünlikli import edildi.');
+      await _rebuildDatabaseOnly();
+    } catch (e) {
+      _showToast(AdminMessages.friendlyError(e), error: true);
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -457,6 +523,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   onBack: () => Navigator.of(context).maybePop(),
                   onModeChanged: (mode) => setState(() => _mode = mode),
                   onImportDocument: _importDocument,
+                  onExportDatabase: _exportDatabase,
+                  onImportDatabase: _importDatabase,
                   onSaveAllParagraphs: _saveAllParagraphs,
                   onFinalizeDocument: _finalizeDocument,
                   onRebuild: _rebuildDatabaseOnly,
@@ -510,8 +578,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               colors: colors,
                               paragraph: paragraph,
                               isProcessing: _isProcessing,
-                              onAddImage: () => _addMedia(isVideo: false),
-                              onAddVideo: () => _addMedia(isVideo: true),
+                              onAddImage: () => _addMedia(type: _MediaType.image),
+                              onAddVideo: () => _addMedia(type: _MediaType.video),
+                              onAddAudio: () => _addMedia(type: _MediaType.audio),
                               onToggleNews: _toggleNews,
                               onPickPreview: _pickNewsPreview,
                               onSaveParagraph: _saveCurrentParagraph,
@@ -553,6 +622,8 @@ class _AdminToolbar extends StatelessWidget {
     required this.onBack,
     required this.onModeChanged,
     required this.onImportDocument,
+    required this.onExportDatabase,
+    required this.onImportDatabase,
     required this.onSaveAllParagraphs,
     required this.onFinalizeDocument,
     required this.onRebuild,
@@ -570,6 +641,8 @@ class _AdminToolbar extends StatelessWidget {
   final VoidCallback onBack;
   final ValueChanged<_AdminMode> onModeChanged;
   final VoidCallback onImportDocument;
+  final VoidCallback onExportDatabase;
+  final VoidCallback onImportDatabase;
   final VoidCallback onSaveAllParagraphs;
   final VoidCallback onFinalizeDocument;
   final VoidCallback onRebuild;
@@ -640,12 +713,23 @@ class _AdminToolbar extends StatelessWidget {
                   label: 'Resminamany Baza goş',
                   onPressed: isProcessing ? null : onFinalizeDocument,
                 ),
-              if (canShowRebuild)
+              if (canShowRebuild) ...[
                 _ToolbarButton(
                   icon: Icons.refresh_rounded,
                   label: 'Bazany täzele',
                   onPressed: isProcessing ? null : onRebuild,
                 ),
+                _ToolbarButton(
+                  icon: Icons.upload_file_outlined,
+                  label: 'Bazany import et',
+                  onPressed: isProcessing ? null : onImportDatabase,
+                ),
+                _ToolbarButton(
+                  icon: Icons.download_outlined,
+                  label: 'Bazany eksport et',
+                  onPressed: isProcessing ? null : onExportDatabase,
+                ),
+              ],
             ],
           ],
         ),

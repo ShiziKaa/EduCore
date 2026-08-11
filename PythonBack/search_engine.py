@@ -14,14 +14,18 @@ elif hasattr(sys.stdout, "buffer"):
     import io
 
     sys.stdout = io.TextIOWrapper(
+    sys.stdout = io.TextIOWrapper(
         sys.stdout.buffer, encoding="utf-8", line_buffering=True
     )
 
 from fastapi import BackgroundTasks, FastAPI, File, Query, UploadFile, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import chromadb
 import uvicorn
+import zipfile
+import tempfile
 
 from database_builder import build_database, extract_news_metadata
 from document_admin import (
@@ -64,8 +68,9 @@ models_path = os.path.join(base_dir, "models")
 data_dir = os.path.join(base_dir, "data")
 images_dir = os.path.join(base_dir, "images")
 videos_dir = os.path.join(base_dir, "videos")
+audios_dir = os.path.join(base_dir, "audios")
 
-for folder in [models_path, data_dir, images_dir, videos_dir, chroma_path]:
+for folder in [models_path, data_dir, images_dir, videos_dir, audios_dir, chroma_path]:
     os.makedirs(folder, exist_ok=True)
 
 os.environ["SENTENCE_TRANSFORMERS_HOME"] = models_path
@@ -94,9 +99,14 @@ def search_api(query: str = Query(..., description="Вопрос от студе
     prepared_query = f"query: {query}"
     query_embedding = model.encode(prepared_query).tolist()
 
+@app.get("/search")
+def search_api(query: str = Query(..., description="Вопрос от студента")):
+    prepared_query = f"query: {query}"
+    query_embedding = model.encode(prepared_query).tolist()
+
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=1,
+        n_results=4,
         include=["documents", "distances", "metadatas"],
     )
 
@@ -109,6 +119,7 @@ def search_api(query: str = Query(..., description="Вопрос от студе
 
         images: list[str] = []
         videos: list[str] = []
+        audios: list[str] = []
 
         if results.get("metadatas") and results["metadatas"][0]:
             metadata = results["metadatas"][0][0] or {}
@@ -120,6 +131,10 @@ def search_api(query: str = Query(..., description="Вопрос от студе
             videos_raw = metadata.get("videos", "")
             if videos_raw:
                 videos = [name.strip() for name in videos_raw.split(",") if name.strip()]
+
+            audios_raw = metadata.get("audios", "")
+            if audios_raw:
+                audios = [name.strip() for name in audios_raw.split(",") if name.strip()]
 
         if not images and parsed_meta.get("images"):
             images = [
@@ -135,12 +150,34 @@ def search_api(query: str = Query(..., description="Вопрос от студе
                 if name.strip()
             ]
 
+        if not audios and parsed_meta.get("audios"):
+            audios = [
+                name.strip()
+                for name in parsed_meta["audios"].split(",")
+                if name.strip()
+            ]
+
+        related_results = []
+        for i in range(1, len(results["documents"][0])):
+            doc_text = results["documents"][0][i]
+            r_clean_text, _ = extract_news_metadata(doc_text)
+            # Limit length of suggestions to avoid overflow
+            snippet = r_clean_text.strip()
+            if len(snippet) > 80:
+                snippet = snippet[:77] + "..."
+            related_results.append({
+                "text": snippet,
+                "full_text": r_clean_text.strip(),
+            })
+
         return {
             "status": "success",
             "answer": found_text,
             "distance": distance,
             "images": images,
             "videos": videos,
+            "audios": audios,
+            "related": related_results,
         }
 
     return {
@@ -148,6 +185,8 @@ def search_api(query: str = Query(..., description="Вопрос от студе
         "answer": "Bagyşlaň, bu barada maglumat tapylmady.",
         "images": [],
         "videos": [],
+        "audios": [],
+        "related": [],
     }
 
 
@@ -167,6 +206,8 @@ async def upload_media(file: UploadFile = File(...)):
         target_dir = images_dir
     elif filename.endswith((".mp4", ".avi", ".mov", ".mkv")):
         target_dir = videos_dir
+    elif filename.endswith((".mp3", ".wav")):
+        target_dir = audios_dir
     else:
         return {"status": "error", "message": "Неподдерживаемый формат файла"}
 
@@ -192,9 +233,54 @@ class ParagraphUpdate(BaseModel):
     text: str
     images: list[str] = []
     videos: list[str] = []
+    audios: list[str] = []
     is_news: bool = False
     news_preview: str | None = None
 
+
+@app.get("/admin/db/export")
+def admin_export_db():
+    temp_zip = tempfile.mktemp(suffix=".zip")
+    folders_to_zip = ["chroma_db", "data", "images", "videos", "audios"]
+    with zipfile.ZipFile(temp_zip, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for folder in folders_to_zip:
+            folder_path = os.path.join(base_dir, folder)
+            if not os.path.exists(folder_path):
+                continue
+            for root, _, files in os.walk(folder_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, base_dir)
+                    zipf.write(file_path, arcname)
+    return FileResponse(temp_zip, filename="EduCore_DB_Export.zip")
+
+@app.post("/admin/db/import")
+async def admin_import_db(file: UploadFile = File(...)):
+    global db_client, collection
+    temp_zip = tempfile.mktemp(suffix=".zip")
+    with open(temp_zip, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # clear existing
+    folders_to_clear = ["chroma_db", "data", "images", "videos", "audios"]
+    for folder in folders_to_clear:
+        folder_path = os.path.join(base_dir, folder)
+        if os.path.exists(folder_path):
+            shutil.rmtree(folder_path, ignore_errors=True)
+            
+    # extract
+    with zipfile.ZipFile(temp_zip, "r") as zipf:
+        zipf.extractall(base_dir)
+        
+    os.remove(temp_zip)
+    
+    # re-init chromadb
+    for folder in folders_to_clear:
+        os.makedirs(os.path.join(base_dir, folder), exist_ok=True)
+    db_client = chromadb.PersistentClient(path=chroma_path)
+    collection = db_client.get_or_create_collection(name="tdbsi_history")
+    
+    return {"status": "success", "message": "Database imported successfully."}
 
 @app.post("/admin/parse-document")
 async def admin_parse_document(file: UploadFile = File(...)):

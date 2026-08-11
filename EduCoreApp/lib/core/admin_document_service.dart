@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 
 import 'app_constants.dart';
@@ -58,5 +60,24 @@ class AdminDocumentService {
 
   Future<void> rebuildDatabase() async {
     await _dio.post('${AppConstants.apiBaseUrl}/build');
+  }
+
+  Future<void> exportDatabase(String savePath) async {
+    final response = await _dio.get(
+      '${AppConstants.apiBaseUrl}/admin/db/export',
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final file = File(savePath);
+    await file.writeAsBytes(response.data as List<int>);
+  }
+
+  Future<void> importDatabase(String zipFilePath, String filename) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(zipFilePath, filename: filename),
+    });
+    await _dio.post(
+      '${AppConstants.apiBaseUrl}/admin/db/import',
+      data: formData,
+    );
   }
 }

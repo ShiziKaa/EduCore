@@ -50,6 +50,11 @@ def _parse_uploaded_file(path: str) -> list[dict[str, Any]]:
             for item in metadata.get("videos", "").split(",")
             if item.strip()
         ]
+        audios = [
+            item.strip()
+            for item in metadata.get("audios", "").split(",")
+            if item.strip()
+        ]
         is_news = metadata.get("is_news") == "true"
         news_preview = metadata.get("news_preview") or None
         paragraphs.append(
@@ -58,6 +63,7 @@ def _parse_uploaded_file(path: str) -> list[dict[str, Any]]:
                 "text": text,
                 "images": images,
                 "videos": videos,
+                "audios": audios,
                 "is_news": is_news,
                 "news_preview": news_preview,
                 "is_saved": False,
@@ -103,11 +109,14 @@ def serialize_paragraph(paragraph: dict[str, Any]) -> str:
     parts = [text]
     images = paragraph.get("images") or []
     videos = paragraph.get("videos") or []
+    audios = paragraph.get("audios") or []
 
     if images:
         parts.append(f"[IMG: {', '.join(images)}]")
     if videos:
         parts.append(f"[VIDEO: {', '.join(videos)}]")
+    if audios:
+        parts.append(f"[AUDIO: {', '.join(audios)}]")
     if paragraph.get("is_news"):
         preview = (paragraph.get("news_preview") or "").strip()
         if not preview:
@@ -133,6 +142,7 @@ def update_paragraph(
     paragraph["text"] = (payload.get("text") or "").strip()
     paragraph["images"] = list(payload.get("images") or [])
     paragraph["videos"] = list(payload.get("videos") or [])
+    paragraph["audios"] = list(payload.get("audios") or [])
     paragraph["is_news"] = bool(payload.get("is_news"))
     paragraph["news_preview"] = payload.get("news_preview")
 

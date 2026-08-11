@@ -63,4 +63,14 @@ class AiCorePaths {
     );
     return videoFile.existsSync() ? videoFile.absolute : null;
   }
+
+  static File? resolveAudioFile(String audioName, {String? coreDirectory}) {
+    final dbDir = coreDirectory ?? resolveDbDirectory()?.path;
+    if (dbDir == null) return null;
+
+    final audioFile = File(
+      '$dbDir${Platform.pathSeparator}audios${Platform.pathSeparator}$audioName',
+    );
+    return audioFile.existsSync() ? audioFile.absolute : null;
+  }
 }

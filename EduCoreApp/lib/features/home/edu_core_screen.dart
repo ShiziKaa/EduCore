@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -44,6 +45,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   final AiServerService _serverService = AiServerService();
   final SearchService _searchService = SearchService();
   final NewsService _newsService = NewsService();
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   bool _hasSearched = false;
   bool _isLoading = false;
@@ -56,6 +58,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   String _streamingAnswer = '';
   List<String> _answerImages = [];
   List<String> _answerVideos = [];
+  List<String> _answerAudios = [];
   bool _showAnswerMedia = false;
   String? _aiCoreDirectory;
   File? _instituteLogo;
@@ -125,6 +128,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
 
   void _startStreamingText(String fullText) {
     _streamingTimer?.cancel();
+    _audioPlayer.stop();
     _streamingAnswer = '';
     _showAnswerMedia = false;
     _isStreaming = true;
@@ -132,6 +136,16 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
     _streamDuration = Duration(
       milliseconds: (fullText.length * 22).clamp(900, 12000),
     );
+
+    if (_answerAudios.isNotEmpty) {
+      final audioFile = AiCorePaths.resolveAudioFile(
+        _answerAudios.first,
+        coreDirectory: _aiCoreDirectory,
+      );
+      if (audioFile != null) {
+        _audioPlayer.play(DeviceFileSource(audioFile.path));
+      }
+    }
 
     void tick() {
       if (!mounted) return;
@@ -223,6 +237,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
       _streamingAnswer = '';
       _answerImages = [];
       _answerVideos = [];
+      _answerAudios = [];
       _showAnswerMedia = false;
       _articlePreviewImage = articlePreview;
       _autoScrollEnabled = true;
@@ -240,6 +255,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
         _isLoading = false;
         _answerImages = result.images;
         _answerVideos = result.videos;
+        _answerAudios = result.audios;
         _aiCoreDirectory = coreDir;
       });
 
@@ -256,6 +272,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
 
   void _resetSearch() {
     _streamingTimer?.cancel();
+    _audioPlayer.stop();
     setState(() {
       _hasSearched = false;
       _isStreaming = false;
@@ -263,6 +280,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
       _currentQuestion = '';
       _answerImages = [];
       _answerVideos = [];
+      _answerAudios = [];
       _showAnswerMedia = false;
       _aiCoreDirectory = null;
       _articlePreviewImage = null;
@@ -296,6 +314,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   @override
   void dispose() {
     _streamingTimer?.cancel();
+    _audioPlayer.dispose();
     _scrollController.dispose();
     _controller.dispose();
     _searchFocus.dispose();

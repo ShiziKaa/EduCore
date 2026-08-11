@@ -7,10 +7,12 @@ class AppConstants {
   static const allowedDocumentExtensions = ['docx', 'xlsx'];
   static const allowedImageExtensions = ['jpg', 'jpeg', 'png', 'svg'];
   static const allowedVideoExtensions = ['mp4', 'avi', 'mov', 'mkv'];
+  static const allowedAudioExtensions = ['mp3', 'wav'];
   static const allowedUploadExtensions = [
     ...allowedDocumentExtensions,
     ...allowedImageExtensions,
     ...allowedVideoExtensions,
+    ...allowedAudioExtensions,
   ];
   static const instituteLogoExtensions = ['png', 'jpg', 'jpeg'];
   static const maxNewsItems = 15;

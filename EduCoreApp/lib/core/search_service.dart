@@ -7,11 +7,13 @@ class SearchResult {
     required this.answer,
     required this.images,
     required this.videos,
+    required this.audios,
   });
 
   final String answer;
   final List<String> images;
   final List<String> videos;
+  final List<String> audios;
 }
 
 class SearchService {
@@ -38,11 +40,18 @@ class SearchService {
             .where((item) => item.isNotEmpty)
             .toList() ??
         <String>[];
+    final audios =
+        (data['audios'] as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .where((item) => item.isNotEmpty)
+            .toList() ??
+        <String>[];
 
     return SearchResult(
       answer: data['answer']?.toString() ?? 'Bagyşlaň, maglumat tapylmady.',
       images: images,
       videos: videos,
+      audios: audios,
     );
   }
 }
