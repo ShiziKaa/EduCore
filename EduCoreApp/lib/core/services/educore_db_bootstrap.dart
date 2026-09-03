@@ -80,7 +80,7 @@ class EduCoreDbBootstrap {
   }
 
   static void _ensureWorkspaceFolders(Directory root) {
-    for (final name in ['data', 'images', 'videos', 'chroma_db', 'models']) {
+    for (final name in ['data', 'images', 'videos', 'audios', 'chroma_db', 'models']) {
       Directory('${root.path}${Platform.pathSeparator}$name').createSync(
         recursive: true,
       );

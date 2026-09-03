@@ -1,11 +1,11 @@
 {
-    "name": "EduCore",
-    "short_name": "EduCore",
+    "name": "Bilim Çeşmesi",
+    "short_name": "Bilim Çeşmesi",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F5F7FA",
     "theme_color": "#0D9488",
-    "description": "A new Flutter project.",
+    "description": "Bilim Çeşmesi — bilim we habar platformasy",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,5 +1,5 @@
 # =============================================================================
-# EduCore monorepo — keep secrets, binaries, models, and build output out of git
+# Bilim monorepo — keep secrets, binaries, models, and build output out of git
 # =============================================================================
 
 # --- OS & editors ---
@@ -37,9 +37,12 @@ secrets.json
 
 # --- Release / installer output ---
 EduCore_Release/
+installer/
 installer-output/
 Output/
 *.iss.bak
+BilimCesmesi_Setup.exe
+EduCore_Setup.exe
 
 # --- Python (PythonBack) ---
 PythonBack/__pycache__/

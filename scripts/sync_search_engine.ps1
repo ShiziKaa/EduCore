@@ -1,57 +1,52 @@
-$ErrorActionPreference = "Stop"
+. "$PSScriptRoot\common.ps1"
 
-$Root = Split-Path -Parent $PSScriptRoot
-$Dist = Join-Path $Root "PythonBack\dist\search_engine"
-$DbRoot = Join-Path $Root "EduCoreApp\assets\EduCore_DB"
-$FlutterApp = Join-Path $Root "EduCoreApp"
-
-if (-not (Test-Path (Join-Path $Dist "search_engine.exe"))) {
-    throw "Run scripts/build_search_engine.ps1 first."
+if (-not (Test-Path $SearchEngineDistExe)) {
+    throw "Run scripts\build_search_engine.ps1 first. Missing: $SearchEngineDistExe"
 }
 
-New-Item -ItemType Directory -Path $DbRoot -Force | Out-Null
-foreach ($folder in @("data", "images", "videos", "chroma_db", "models")) {
-    New-Item -ItemType Directory -Path (Join-Path $DbRoot $folder) -Force | Out-Null
-}
+Stop-LockedAiProcesses
+Ensure-DbWorkspaceFolders -TargetDb $DbAssetsDir
 
 function Sync-BundleTo {
-    param(
-        [string]$TargetDb
-    )
+    param([Parameter(Mandatory = $true)][string]$TargetDb)
 
-    if (-not (Test-Path $TargetDb)) {
+    if (-not (Test-Path (Split-Path $TargetDb -Parent))) {
         return $false
     }
 
-    New-Item -ItemType Directory -Path $TargetDb -Force | Out-Null
-    foreach ($folder in @("data", "images", "videos", "chroma_db", "models")) {
-        New-Item -ItemType Directory -Path (Join-Path $TargetDb $folder) -Force | Out-Null
-    }
+    Ensure-DbWorkspaceFolders -TargetDb $TargetDb
 
-    Copy-Item (Join-Path $Dist "search_engine.exe") (Join-Path $TargetDb "search_engine.exe") -Force
-    if (Test-Path (Join-Path $TargetDb "_internal")) {
-        Remove-Item (Join-Path $TargetDb "_internal") -Recurse -Force
+    Copy-Item $SearchEngineDistExe (Join-Path $TargetDb $SearchEngineExeName) -Force
+
+    $internalTarget = Join-Path $TargetDb "_internal"
+    if (Test-Path $internalTarget) {
+        Remove-Item $internalTarget -Recurse -Force
     }
-    Copy-Item (Join-Path $Dist "_internal") (Join-Path $TargetDb "_internal") -Recurse
+    Copy-Item (Join-Path $SearchEngineDistDir "_internal") $internalTarget -Recurse
     return $true
 }
 
-Write-Host "Syncing search_engine.exe + _internal into assets..." -ForegroundColor Cyan
-Sync-BundleTo -TargetDb $DbRoot | Out-Null
+Write-Host "==> [$AppDisplayName] Syncing search_engine.exe + _internal into assets..." -ForegroundColor Cyan
+Sync-BundleTo -TargetDb $DbAssetsDir | Out-Null
 
-$imagesSource = Join-Path $Root "PythonBack\images"
+$imagesSource = Join-Path $PythonBackDir "images"
 if (Test-Path $imagesSource) {
-    Copy-Item "$imagesSource\*" (Join-Path $DbRoot "images") -Recurse -Force
+    Copy-Item "$imagesSource\*" (Join-Path $DbAssetsDir "images") -Recurse -Force
 }
 
-Write-Host "Done: $DbRoot" -ForegroundColor Green
+$videosSource = Join-Path $PythonBackDir "videos"
+if (Test-Path $videosSource) {
+    Copy-Item "$videosSource\*" (Join-Path $DbAssetsDir "videos") -Recurse -Force
+}
 
-$runtimeTargets = @(
-    (Join-Path $FlutterApp "build\windows\x64\runner\Debug\EduCore_DB"),
-    (Join-Path $FlutterApp "build\windows\x64\runner\Release\EduCore_DB")
-)
+$audiosSource = Join-Path $PythonBackDir "audios"
+if (Test-Path $audiosSource) {
+    Copy-Item "$audiosSource\*" (Join-Path $DbAssetsDir "audios") -Recurse -Force
+}
 
-foreach ($target in $runtimeTargets) {
+Write-Host "Done: $DbAssetsDir" -ForegroundColor Green
+
+foreach ($target in @($DebugDbDir, $ReleaseDbDir)) {
     if (-not (Test-Path (Split-Path $target -Parent))) {
         continue
     }
@@ -62,7 +57,7 @@ foreach ($target in $runtimeTargets) {
             Write-Host "Runtime bundle updated." -ForegroundColor Green
         }
     } catch {
-        Write-Warning "Could not update $target (app may be running). Stop flutter run and rerun sync."
+        Write-Warning "Could not update $target (files may still be locked). Stop flutter run / search_engine.exe and rerun sync."
     }
 }
 

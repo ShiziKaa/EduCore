@@ -9,13 +9,17 @@ class AdminMediaPreviewGrid extends StatelessWidget {
     required this.imageNames,
     required this.videoNames,
     required this.colors,
+    this.audioNames = const [],
     this.newsPreview,
+    this.onRemoveAudio,
   });
 
   final List<String> imageNames;
   final List<String> videoNames;
+  final List<String> audioNames;
   final ColorScheme colors;
   final String? newsPreview;
+  final ValueChanged<String>? onRemoveAudio;
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +66,41 @@ class AdminMediaPreviewGrid extends StatelessWidget {
           (name) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: _AdminVideoThumb(fileName: name, colors: colors),
+          ),
+        ),
+      ]);
+    }
+
+    if (audioNames.isNotEmpty) {
+      children.addAll([
+        Text('Audio', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 8),
+        ...audioNames.map(
+          (name) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Icon(Icons.audiotrack_outlined, color: colors.primary, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                if (onRemoveAudio != null)
+                  IconButton(
+                    tooltip: 'Audio öçür',
+                    onPressed: () => onRemoveAudio!(name),
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      color: colors.error,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ]);

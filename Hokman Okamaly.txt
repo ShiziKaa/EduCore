@@ -1,0 +1,314 @@
+================================================================================
+  BILIM ÇEŞMESI — HÖKMAN OKAMALY
+  Gurnama, işe salma we admin paneli boýunça gollanma
+================================================================================
+
+Bu dokument programma nähili işleýändigini, nädip gurmalydygyny we admin
+panelinden maglumat bazasyny nähili dolandyrmalydygyny düşündirýär.
+Admin paneldäki düwme atlary Türkmen dilinde galdyrylýar — ekranda şol ýaly
+görünýär.
+
+
+--------------------------------------------------------------------------------
+1. PROGRAMMA NÄME ÜÇIN WE NÄHILI IŞLEÝÄR
+--------------------------------------------------------------------------------
+
+Bilim Çeşmesi — institutyň resmi maglumatlary boýunça sorag berip bolýan
+ýerli (offline) gözleg programmasy.
+
+Esasy pikir:
+  • Admin Word ýa-da Excel resminamasyny import edýär.
+  • Programma resminamany ABZASLARA (paragraph) bölýär.
+  • Her abzas aýratyn maglumat bölegi hökmünde saklanýar.
+  • Her abzas üçin EMBEDDING (vektor) hasaplanýar we ChromaDB baza ýazylýar.
+  • Ulanyjy sorag ýazanunda programma soragyň manysyna iň ýakyn abzasy
+    tapyýar we şol abzasyň tekstini, suratyny, wideo / audio-syny görkezýär.
+
+Näme üçin abzaslar möhüm?
+  Gözleg «bütin resminamany» däl-de, «dogry abzasy» tapýar. Şonuň üçin
+  her abzas bir tema / bir fakt / bir maglumat bolmaly. Gaty uzyn ýa-da
+  birnäçe tema garyşan abzas gözlegi erbetleşdirýär.
+
+Näme üçin embedding?
+  Adaty «söz tap» gözlegi diňe birmeňzeş sözleri tapýar. Embedding bolsa
+  manysyna garap deňeşdirýär: sorag başga sözler bilen ýazylan bolsa-da,
+  dogry abzas tapylyp bilýär. Maglumat bazasynda jogap ýok bolsa,
+  programma uýdurma jogap öndürmeýär — «maglumat ýok» diýen habary berýär.
+
+Esasy aýratynlyklar:
+  • Offline iş — internet hökman däl (model we baza kompýuterde).
+  • Multimediýa jogaplar: surat, wideo, audio.
+  • Baş sahypada möhüm habarlar karuseli.
+  • Çalt sorag üçin çipler (quick tags).
+  • Jogapdan soň meňzeş sorag teklibi (max 4).
+
+
+--------------------------------------------------------------------------------
+2. PROGRAMMANY NÄDIP GURNAMALY WE IŞE SALMALY
+--------------------------------------------------------------------------------
+
+2.1. Inno Setup installer arkaly (ulanyjy üçin esasy usul)
+
+  1) Gurnama faýlyny (.exe installer) açyň.
+  2) Inno Setup ädimlerini yzarlaň (papka saýlaň, Gurnamak / Install).
+  3) Gurnama gutarandan soň Başlat menýusyndan ýa-da iş stolundaky
+     ýarlykdan «Bilim Çeşmesi» programmasyny açyň.
+  4) Esasy işjeň faýl: educore.exe
+  5) Programma bilen birlikde EduCore_DB papkasy bolmaly (model, search
+     engine, suratlar, wideo, audio, chroma_db). Olary aýyrmaň we
+     başga ýere göçürmäň — gözleg işlemeýär.
+
+  Belgi: Installer kompýuterde ýazmak rugsadyny (Windows UAC) sorap biler.
+  Admin hukuklary bilen gurnaň.
+
+
+2.2. Flutter release papkasyndan (portable / testden soň)
+
+  Flutter Windows release ýygnanandan soň programma şu ýerde bolýar:
+
+    EduCoreApp\build\windows\x64\runner\Release\
+
+  Şol papkada:
+    • educore.exe          — programmany açýan faýl
+    • EduCore_DB\          — AI / maglumat bazasy bukjasy
+    • beýleki DLL we Flutter faýllary
+
+  Işe salmak:
+    1) Release papkasyny açyň.
+    2) educore.exe-e iki gezek basyň.
+    3) Ähli Release mazmunyny (DLL + EduCore_DB bilen) bilelikde göçüriň —
+       diňe educore.exe-ni aýratyn göçürmek ýeterlik däl.
+
+  Inno Setup üçin adatça şol Release papkasynyň mazmuny paket edilýär.
+
+
+2.3. Ilkinji açylyş
+
+  • Programma açylanda local AI serweri (search_engine) awtomatiki başlaýar.
+  • Ilkinji gezek model ýüklenýän bolsa birnäçe sekunt garaşyp bilersiňiz.
+  • Baş sahypada salamlaşma, institut logosy, çipler we gözleg meýdany
+    görünmeli.
+
+
+--------------------------------------------------------------------------------
+3. ADATY ULANYJY HÖKMÜNDE NÄHILI ULANMALY
+--------------------------------------------------------------------------------
+
+  1) Baş sahypada soragyňyzy ýazyň we Enter basyň / gözleg düwmesini basyň.
+  2) Ýa-da çipleriň birine basyň — ol çip teksti gözlege iberilýär.
+  3) Jogap tapylyp bilýär:
+       - tekst
+       - suratlar (bar bolsa)
+       - wideo (bar bolsa)
+       - audio (bar bolsa — jogap bilen awtomatiki aýdyp bilýär)
+  4) Möhüm habarlar karuselinde Baş sahypadaky täzelikleri görüp bilersiňiz.
+  5) Jogapdan soň «Mümkin sizi gyzyklandyrýar» diýen meňzeş soraglar
+     çykyp biler — olara basyp täze gözleg edip bilersiňiz.
+
+  Eger bazada degişli maglumat ýok bolsa:
+    «Soragyňyz boýunça maglumat bazasynda maglumat ýok.»
+
+
+--------------------------------------------------------------------------------
+4. ADMIN PANELE NÄDIP GIRIP BOLÝAR
+--------------------------------------------------------------------------------
+
+Admin panel gizlin giriziş arkaly açylýar:
+
+  1) Programmanyň Baş sahypasynyň aşagynda developer maglumatyny
+     (at / e-poçta) tapyň.
+  2) Developer ikonkasyny / ýazgysyny TAKMYNAN 3 SEKUNT BASYP SAKLAŇ.
+  3) Progress halkasy dolan soň Admin panel açylýar.
+
+Admin panelde iki esasy bölum:
+  • Konstruktor  — resminama / abzaslar / mediýa / bazany täzelemek
+  • Baş sahypa   — logo, salamlaşma, düşündiriş, çipler
+
+
+--------------------------------------------------------------------------------
+5. MAGLUMAT BAZASYNY EXPORT / IMPORT ETMEK
+--------------------------------------------------------------------------------
+
+5.1. Export (ätiýaçlyk / beýleki kompýutere göçürmek)
+
+  Konstruktor paneli → «Bazany eksport et»
+  • ZIP faýl saýlanýar (mysal: BilimCesmesi_DB_Export.zip)
+  • Içinde maglumatlar, mediýa we gözleg bazasy saklanýar
+  • Täze maglumat goşmazdan öň yzygiderli eksport etmek maslahat berilýär
+
+5.2. Import
+
+  Konstruktor paneli → «Bazany import et»
+  • Öňki eksport edilen ZIP-i saýlaň
+  • Tassyklaň
+  • Import soň programma bazany täzeleýär (rebuild)
+  • ÜNS BERIŇ: import bar bolan bazany çalyşýar — öňünden eksport ediň
+
+
+--------------------------------------------------------------------------------
+6. TÄZE RESMINAMA GOŞMAK (KONSTRUKTOR IŞ AKYMY)
+--------------------------------------------------------------------------------
+
+Bu iň möhüm admin prosesi. Ädimleriň tertibini bozmaň.
+
+6.1. Resminamany import etmek
+
+  1) «Resminamany Import etmek» düwmesine basyň.
+  2) .docx ýa-da .xlsx faýlyny saýlaň.
+  3) Programma abzaslara bölüp draft (wagtlaýyn redaktirleme) açýar.
+  4) Çep tarapda abzas sanawy, ortada tekst, sagda hereketler görünýär.
+
+  Belgi: Draft açyk wagtynda täze resminama import düwmesi gizlenýär —
+  ilki bar bolan draft-y gutaryň ýa-da baza goşuň.
+
+
+6.2. Her abzasy barlamak we tassyklamak (HÖKMANY)
+
+  Her abzas üçin:
+    • Teksti okap düzediň (bir tema = bir abzas).
+    • Geregi ýaly surat / wideo / audio goşuň.
+    • Möhüm habar bolsa — aşakdaky §8-e serediň.
+    • «Abzasy ýatda sakla» basyň — abzas tassyklanan diýlip hasaplanýar.
+
+  NÄME ÜÇIN HER ABZASY ÝAZMALY?
+    Draft-daky üýtgeşmeler diňe ýazylan soň (save) resminama gutarmak we
+    baza goşmak üçin taýýar hasaplanýar. Ýazylmadyk abzaslar ýitip bilýär
+    ýa-da finalize etmäge päsgel berýär. Bu — dogrulyk barlagy.
+
+
+6.3. Ähli abzaslary bir klikde ýazmak
+
+  Ýokarky paneldäki:
+    «Ähli abzaslary ýatda sakla»
+
+  Bu düwme ähli abzaslary bir gezekde draft-a ýazýar.
+  Diňe ähli abzaslaryň dogrudygyna ynanýan wagtyňyz ulanyň.
+  Basmazdan öň:
+    • boş abzas ýokmy?
+    • möhüm habarlarda preview surat barmy?
+    • mediýa dogrymy?
+  Programma tassyklama dialogyny görkezýär.
+
+
+6.4. Resminamany baza goşmak
+
+  Ähli abzaslar ýazylandan soň:
+    «Resminamany Baza goş»
+
+  Bu ädim draft-y gutarýar (finalize). Soňra bazany täzelemek
+  («Bazany täzele») gerek — embedding-ler hasaplanýar we gözleg
+  täze maglumaty tanap başlaýar.
+
+  ÜNS BERIŇ:
+    • Finalize / rebuild wagtynda tassyklama dialogy çykýar — okap soň basyň.
+    • Rebuild uzynrak bolup bilýär (model we ähli abzaslar).
+    • Gutaransoň Baş sahypada täze maglumaty sorag bilen synaglaň.
+
+
+--------------------------------------------------------------------------------
+7. MEDIÝA FAÝLLARY — NÄME EDÝÄRLER WE NÄDIP GOŞMALY
+--------------------------------------------------------------------------------
+
+Sag paneldäki hereketler (saýlanan abzas üçin):
+
+7.1. Surat goş
+  • Abzasa surat baglaýar.
+  • Ulanyjy şol abzasa degişli jogap alanda suratlar görkezilýär.
+
+7.2. Wideo goş
+  • Abzasa wideo baglaýar.
+  • Jogapda wideo görkezilýär / aýtdyrylýar.
+
+7.3. Audio goş
+  • Abzasa audio baglaýar.
+  • Jogap tapylyp bilende audio awtomatiki aýdyp bilýär.
+  • BIR ABZASDA DIŇE 1 AUDIO rugsat berilýär.
+  • Audio goşulansoň «Audio goş» düwmesi gizlenýär.
+  • Audio sanawynda faýlyň ýanynda sebet (pozmak) ikonkasy bar.
+  • Audio öçürilensoň «Audio goş» ýene görünýär.
+
+Mediýa goşandan soň abzasy «Abzasy ýatda sakla» bilen ýazyň —
+ýogsa üýtgeşmeler gutarnykly saklanmaz.
+
+
+--------------------------------------------------------------------------------
+8. MÖHÜM HABAR (KARUSEL)
+--------------------------------------------------------------------------------
+
+Sag panelde «Möhüm habar» açaryny açyň.
+
+Näme bolýar?
+  • Abzas Baş sahypadaky möhüm habarlar karuselinde görünýär.
+  • Karusel üçin PREVIEW SURAT hökmany («Preview suraty saýla»).
+  • Preview ýok bolsa abzasy ýazmak / finalize etmek mümkin däl.
+  • Karuselde iň köp 15 möhüm habar görkezilýär.
+
+Näme üçin ulanylýar?
+  Institutyň möhüm täzeliklerini, çärelerini, bildirişlerini Baş sahypada
+  görkezmek üçin — ulanyjy gözleg etmänem görüp biler.
+
+
+--------------------------------------------------------------------------------
+9. LOGO WE ÇIPLER (BAŞ SAHYPA TAB)
+--------------------------------------------------------------------------------
+
+Admin panelde «Baş sahypa» tabyny açyň.
+
+9.1. Institut logosy
+  • «Institut logosyny goş» — PNG/JPG saýlaň.
+  • Logo Baş sahypada (salamlaşmanyň üstünde) görünýär.
+  • Institutyň resmi keşbini berýär.
+
+9.2. Salamlaşma we düşündiriş
+  • Salamlaşma — esasy salam / baş ýazgy.
+  • Düşündiriş — gysga düşündiriş teksti.
+  • Boş goýup bolmaýar. Üýtgedeniňizden soň «Sakla» basyň.
+
+9.3. Çipler (quick tags)
+  • Baş sahypadaky gysga basylýan teklip sözleridir.
+  • Mysal: «Fakultetler», «Okuw tölegi», «Sport habarlary».
+  • Ulanyjy çipe basanda şol tekst gözlege iberilýär —
+    ýazmazdan çalt sorag bermäge ýardam edýär.
+  • «Çip goş» bilen täze çip goşuň, sebet bilen öçüriň.
+  • Çipleri institutda iň köp soralýan temalar boýunça düzüň.
+  • Üýtgeşmelerden soň hökman «Sakla».
+
+
+--------------------------------------------------------------------------------
+10. MÖHÜM ÝATLATMALAR (ADMIN ÜÇIN GYSGA SANAW)
+--------------------------------------------------------------------------------
+
+  [ ] Täze maglumatdan öň bazany eksport ediň (ätiýaçlyk).
+  [ ] Resminamany import ediň (.docx / .xlsx).
+  [ ] Her abzasy okap düzediň (bir tema = bir abzas).
+  [ ] Mediýany goşuň (surat / wideo / audio — audio max 1).
+  [ ] Möhüm habar bolsa preview surat saýlaň.
+  [ ] Her abzasy «Abzasy ýatda sakla» bilen tassyklanyň
+      ÝA-DA ählisini «Ähli abzaslary ýatda sakla» bilen ýazyň
+      (diňe hemmesiniň dogrudygyna ynanýan bolsaňyz).
+  [ ] «Resminamany Baza goş» → soň «Bazany täzele».
+  [ ] Baş sahypada synag soraglary beriň.
+  [ ] Logo / çipler üýtgedilen bolsa Baş sahypa tabynda «Sakla».
+
+EduCore_DB papkasyny el bilen pozmaň. Programma ýapyk wagtynda
+mediýa faýllarynyň atlaryny el bilen üýtgetmäň — baglanyşyk bozulyp biler.
+
+
+--------------------------------------------------------------------------------
+11. TEHNIKI MAGLUMAT (GYSGAÇA)
+--------------------------------------------------------------------------------
+
+  Programma ady:     Bilim Çeşmesi
+  Version:           1.0.0
+  Esasy exe:         educore.exe
+  Maglumat bukjasy:  EduCore_DB
+  Gözleg serweri:    search_engine.exe (EduCore_DB içinde)
+  Platforma:         Windows (desktop)
+
+Sorag ýa-da ýalňyşlyk bolsa developer maglumatyna ýüz tutup bilersiňiz (Baş sahypanyň aşagynda görkezilýär). 
+Programma intäk hem hakyky ulanyjylar tarapyndan test edilýär.
+Egerde testleriňizde ýalňyşlyk bolsa, developer maglumatyna ýüz tutuň, indiki version-a hökman düzediler.
+
+================================================================================
+  Soňy (2026-09-03)
+================================================================================

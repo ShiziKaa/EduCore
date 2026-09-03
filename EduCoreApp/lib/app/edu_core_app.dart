@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_constants.dart';
 import 'app_theme.dart';
 import 'app_window_chrome.dart';
 import '../features/home/edu_core_screen.dart';
@@ -47,7 +48,7 @@ class _EduCoreAppState extends State<EduCoreApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'EduCore',
+      title: AppConstants.appDisplayName,
       navigatorKey: _navigatorKey,
       themeMode: _themeMode,
       theme: AppTheme.build(Brightness.light),

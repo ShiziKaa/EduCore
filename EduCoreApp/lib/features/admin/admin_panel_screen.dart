@@ -293,6 +293,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       return;
     }
 
+    if (type == _MediaType.audio && paragraph.audios.isNotEmpty) {
+      _showToast('Bir abzasda diňe 1 audio bolup bilýär.', error: true);
+      return;
+    }
+
     final allowedExtensions = switch (type) {
       _MediaType.video => AppConstants.allowedVideoExtensions,
       _MediaType.audio => AppConstants.allowedAudioExtensions,
@@ -320,7 +325,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         if (type == _MediaType.video) {
           paragraph.videos = [...paragraph.videos, filename];
         } else if (type == _MediaType.audio) {
-          paragraph.audios = [...paragraph.audios, filename];
+          paragraph.audios = [filename];
         } else {
           paragraph.images = [...paragraph.images, filename];
         }
@@ -337,6 +342,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     } finally {
       setState(() => _isProcessing = false);
     }
+  }
+
+  void _removeAudio(String fileName) {
+    final paragraph = _selectedParagraph;
+    if (paragraph == null) return;
+
+    setState(() {
+      paragraph.audios = paragraph.audios
+          .where((name) => name != fileName)
+          .toList();
+      paragraph.isSaved = false;
+    });
+    _showToast('Audio öçürildi.');
   }
 
   Future<void> _pickNewsPreview() async {
@@ -444,9 +462,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   Future<void> _exportDatabase() async {
-    final savePath = await FilePicker.platform.saveFile(
+    final savePath = await FilePicker.saveFile(
       dialogTitle: 'Bazany eksport et (Zip)',
-      fileName: 'EduCore_DB_Export.zip',
+      fileName: 'BilimCesmesi_DB_Export.zip',
       type: FileType.custom,
       allowedExtensions: ['zip'],
     );
@@ -473,6 +491,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     );
 
     if (result == null || result.files.single.path == null) return;
+    if (!mounted) return;
 
     final confirmed = await showAdminConfirmDialog(
       context,
@@ -488,8 +507,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       await _ensureServer();
       final file = result.files.single;
       await _documentService.importDatabase(file.path!, file.name);
+      if (!mounted) return;
+      setState(() {
+        _draft = null;
+        _selectedIndex = null;
+        _isDraftFinalized = false;
+      });
       _showToast('Baza üstünlikli import edildi.');
-      await _rebuildDatabaseOnly();
     } catch (e) {
       _showToast(AdminMessages.friendlyError(e), error: true);
     } finally {
@@ -581,6 +605,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               onAddImage: () => _addMedia(type: _MediaType.image),
                               onAddVideo: () => _addMedia(type: _MediaType.video),
                               onAddAudio: () => _addMedia(type: _MediaType.audio),
+                              onRemoveAudio: _removeAudio,
                               onToggleNews: _toggleNews,
                               onPickPreview: _pickNewsPreview,
                               onSaveParagraph: _saveCurrentParagraph,
@@ -892,6 +917,14 @@ class _ParagraphExplorer extends StatelessWidget {
                           color: colors.outline,
                         ),
                       ],
+                      if (paragraph.audios.isNotEmpty) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.audiotrack_outlined,
+                          size: 14,
+                          color: colors.outline,
+                        ),
+                      ],
                     ],
                   ),
                   onTap: () => onSelect(index),
@@ -975,6 +1008,8 @@ class _ParagraphActions extends StatelessWidget {
     required this.isProcessing,
     required this.onAddImage,
     required this.onAddVideo,
+    required this.onAddAudio,
+    required this.onRemoveAudio,
     required this.onToggleNews,
     required this.onPickPreview,
     required this.onSaveParagraph,
@@ -985,12 +1020,16 @@ class _ParagraphActions extends StatelessWidget {
   final bool isProcessing;
   final VoidCallback onAddImage;
   final VoidCallback onAddVideo;
+  final VoidCallback onAddAudio;
+  final ValueChanged<String> onRemoveAudio;
   final ValueChanged<bool> onToggleNews;
   final VoidCallback onPickPreview;
   final VoidCallback onSaveParagraph;
 
   @override
   Widget build(BuildContext context) {
+    final hasAudio = paragraph?.audios.isNotEmpty ?? false;
+
     return SizedBox(
       width: 300,
       child: Padding(
@@ -1024,6 +1063,15 @@ class _ParagraphActions extends StatelessWidget {
                     isProcessing: isProcessing,
                     onPressed: onAddVideo,
                   ),
+                  if (!hasAudio) ...[
+                    const SizedBox(height: 10),
+                    _ActionButton(
+                      label: 'Audio goş',
+                      icon: Icons.audiotrack_outlined,
+                      isProcessing: isProcessing,
+                      onPressed: onAddAudio,
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -1060,18 +1108,22 @@ class _ParagraphActions extends StatelessWidget {
                   const SizedBox(height: 20),
                   if (paragraph!.images.isNotEmpty ||
                       paragraph!.videos.isNotEmpty ||
+                      paragraph!.audios.isNotEmpty ||
                       (paragraph!.isNews &&
                           (paragraph!.newsPreview ?? '').isNotEmpty))
                     AdminMediaPreviewGrid(
                       imageNames: paragraph!.images,
                       videoNames: paragraph!.videos,
+                      audioNames: paragraph!.audios,
                       newsPreview: paragraph!.isNews
                           ? paragraph!.newsPreview
                           : null,
                       colors: colors,
+                      onRemoveAudio: isProcessing ? null : onRemoveAudio,
                     ),
                   if (paragraph!.images.isNotEmpty ||
                       paragraph!.videos.isNotEmpty ||
+                      paragraph!.audios.isNotEmpty ||
                       (paragraph!.isNews &&
                           (paragraph!.newsPreview ?? '').isNotEmpty))
                     const SizedBox(height: 16),

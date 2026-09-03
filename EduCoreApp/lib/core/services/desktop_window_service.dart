@@ -1,13 +1,17 @@
-import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+
+import '../app_constants.dart';
 
 class DesktopWindowService {
   DesktopWindowService._();
 
   static bool get isDesktop =>
-      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.macOS);
 
   static Future<void> initialize() async {
     if (!isDesktop) return;
@@ -21,7 +25,7 @@ class DesktopWindowService {
       backgroundColor: Color(0xFF282A2C),
       skipTaskbar: false,
       titleBarStyle: TitleBarStyle.hidden,
-      title: 'EduCore',
+      title: AppConstants.appDisplayName,
     );
 
     await windowManager.waitUntilReadyToShow(options, () async {

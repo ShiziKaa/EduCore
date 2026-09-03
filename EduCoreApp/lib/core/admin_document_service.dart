@@ -63,12 +63,23 @@ class AdminDocumentService {
   }
 
   Future<void> exportDatabase(String savePath) async {
-    final response = await _dio.get(
+    final response = await _dio.get<List<int>>(
       '${AppConstants.apiBaseUrl}/admin/db/export',
-      options: Options(responseType: ResponseType.bytes),
+      options: Options(
+        responseType: ResponseType.bytes,
+        receiveTimeout: const Duration(minutes: 10),
+        sendTimeout: const Duration(minutes: 2),
+      ),
     );
-    final file = File(savePath);
-    await file.writeAsBytes(response.data as List<int>);
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw StateError('Eksport boş jogap gaýtardy.');
+    }
+    final normalized = savePath.toLowerCase().endsWith('.zip')
+        ? savePath
+        : '$savePath.zip';
+    final file = File(normalized);
+    await file.writeAsBytes(bytes, flush: true);
   }
 
   Future<void> importDatabase(String zipFilePath, String filename) async {
@@ -78,6 +89,10 @@ class AdminDocumentService {
     await _dio.post(
       '${AppConstants.apiBaseUrl}/admin/db/import',
       data: formData,
+      options: Options(
+        receiveTimeout: const Duration(minutes: 10),
+        sendTimeout: const Duration(minutes: 10),
+      ),
     );
   }
 }

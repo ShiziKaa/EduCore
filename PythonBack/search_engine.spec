@@ -7,6 +7,7 @@ block_cipher = None
 hiddenimports = [
     'database_builder',
     'document_admin',
+    'search_quality',
     'fastapi',
     'starlette',
     'starlette.routing',

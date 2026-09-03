@@ -23,6 +23,7 @@ import '../shared/developer_footer.dart';
 import '../shared/fullscreen_image_page.dart';
 import '../shared/news_carousel.dart';
 import '../shared/paragraph_shimmer.dart';
+import '../shared/related_suggestions.dart';
 import '../shared/streaming_answer_text.dart';
 import 'chat_bubbles.dart';
 import 'search_bar_field.dart';
@@ -59,6 +60,8 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   List<String> _answerImages = [];
   List<String> _answerVideos = [];
   List<String> _answerAudios = [];
+  List<RelatedSuggestion> _relatedSuggestions = [];
+  bool _answerFound = false;
   bool _showAnswerMedia = false;
   String? _aiCoreDirectory;
   File? _instituteLogo;
@@ -238,6 +241,8 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
       _answerImages = [];
       _answerVideos = [];
       _answerAudios = [];
+      _relatedSuggestions = [];
+      _answerFound = false;
       _showAnswerMedia = false;
       _articlePreviewImage = articlePreview;
       _autoScrollEnabled = true;
@@ -256,6 +261,8 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
         _answerImages = result.images;
         _answerVideos = result.videos;
         _answerAudios = result.audios;
+        _relatedSuggestions = result.related;
+        _answerFound = result.found;
         _aiCoreDirectory = coreDir;
       });
 
@@ -281,6 +288,8 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
       _answerImages = [];
       _answerVideos = [];
       _answerAudios = [];
+      _relatedSuggestions = [];
+      _answerFound = false;
       _showAnswerMedia = false;
       _aiCoreDirectory = null;
       _articlePreviewImage = null;
@@ -565,6 +574,17 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
                                             colors: colors,
                                             resolveVideo: _resolveVideoFile,
                                           ),
+                                        ),
+                                      if (!_isStreaming &&
+                                          _answerFound &&
+                                          _relatedSuggestions.isNotEmpty)
+                                        RelatedSuggestionsSection(
+                                          items: _relatedSuggestions,
+                                          colors: colors,
+                                          onSelected: (query) {
+                                            _controller.text = query;
+                                            _runSearch(query);
+                                          },
                                         ),
                                     ],
                                   ),

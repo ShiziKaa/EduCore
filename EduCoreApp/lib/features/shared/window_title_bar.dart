@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../core/app_constants.dart';
 import 'background_glow.dart';
 
 class WindowTitleBar extends StatefulWidget {
@@ -158,7 +159,7 @@ class _AppBrand extends StatelessWidget {
         DefaultTextStyle(
           style: const TextStyle(decoration: TextDecoration.none),
           child: Text(
-            'EduCore',
+            AppConstants.appDisplayName,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 13,
               fontWeight: FontWeight.w600,

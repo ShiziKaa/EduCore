@@ -14,7 +14,6 @@ elif hasattr(sys.stdout, "buffer"):
     import io
 
     sys.stdout = io.TextIOWrapper(
-    sys.stdout = io.TextIOWrapper(
         sys.stdout.buffer, encoding="utf-8", line_buffering=True
     )
 
@@ -24,10 +23,13 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import chromadb
 import uvicorn
-import zipfile
 import tempfile
+import gc
+import time
+from starlette.background import BackgroundTask
 
 from database_builder import build_database, extract_news_metadata
+from db_backup import create_export_zip, import_from_zip
 from document_admin import (
     create_draft_from_file,
     drafts_dir,
@@ -35,8 +37,15 @@ from document_admin import (
     load_draft,
     update_paragraph,
 )
+from search_quality import (
+    NOT_FOUND_MESSAGE,
+    build_related_items,
+    is_meaningful_query,
+    is_relevant_match,
+    normalize_query,
+)
 
-app = FastAPI(title="EduCore AI Reactive Engine")
+app = FastAPI(title="Bilim Çeşmesi AI Reactive Engine")
 
 
 def _app_base_dir() -> str:
@@ -79,14 +88,14 @@ if _models_ready(models_path):
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
-print("EduCore: Инициализация ChromaDB...")
+print("Bilim Çeşmesi: Инициализация ChromaDB...")
 db_client = chromadb.PersistentClient(path=chroma_path)
 collection = db_client.get_or_create_collection(name="tdbsi_history")
 
 device = "cpu"
-print(f"EduCore: Загрузка ИИ-модели на {device.upper()}... (Ждите, идет прогрев)")
+print(f"Bilim Çeşmesi: Загрузка ИИ-модели на {device.upper()}... (Ждите, идет прогрев)")
 model = SentenceTransformer("intfloat/multilingual-e5-base", device=device)
-print("EduCore AI Микросервис успешно запущен и готов к работе!")
+print("Bilim Çeşmesi AI микросервис успешно запущен и готов к работе!")
 
 
 @app.get("/health")
@@ -94,99 +103,123 @@ def health_check():
     return {"status": "ok"}
 
 
-@app.get("/search")
-def search_api(query: str = Query(..., description="Вопрос от студента")):
-    prepared_query = f"query: {query}"
-    query_embedding = model.encode(prepared_query).tolist()
-
-@app.get("/search")
-def search_api(query: str = Query(..., description="Вопрос от студента")):
-    prepared_query = f"query: {query}"
-    query_embedding = model.encode(prepared_query).tolist()
-
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=4,
-        include=["documents", "distances", "metadatas"],
-    )
-
-    if results["documents"] and results["documents"][0]:
-        found_text = results["documents"][0][0]
-        distance = results["distances"][0][0]
-
-        clean_text, parsed_meta = extract_news_metadata(found_text)
-        found_text = clean_text
-
-        images: list[str] = []
-        videos: list[str] = []
-        audios: list[str] = []
-
-        if results.get("metadatas") and results["metadatas"][0]:
-            metadata = results["metadatas"][0][0] or {}
-
-            images_raw = metadata.get("images", "")
-            if images_raw:
-                images = [name.strip() for name in images_raw.split(",") if name.strip()]
-
-            videos_raw = metadata.get("videos", "")
-            if videos_raw:
-                videos = [name.strip() for name in videos_raw.split(",") if name.strip()]
-
-            audios_raw = metadata.get("audios", "")
-            if audios_raw:
-                audios = [name.strip() for name in audios_raw.split(",") if name.strip()]
-
-        if not images and parsed_meta.get("images"):
-            images = [
-                name.strip()
-                for name in parsed_meta["images"].split(",")
-                if name.strip()
-            ]
-
-        if not videos and parsed_meta.get("videos"):
-            videos = [
-                name.strip()
-                for name in parsed_meta["videos"].split(",")
-                if name.strip()
-            ]
-
-        if not audios and parsed_meta.get("audios"):
-            audios = [
-                name.strip()
-                for name in parsed_meta["audios"].split(",")
-                if name.strip()
-            ]
-
-        related_results = []
-        for i in range(1, len(results["documents"][0])):
-            doc_text = results["documents"][0][i]
-            r_clean_text, _ = extract_news_metadata(doc_text)
-            # Limit length of suggestions to avoid overflow
-            snippet = r_clean_text.strip()
-            if len(snippet) > 80:
-                snippet = snippet[:77] + "..."
-            related_results.append({
-                "text": snippet,
-                "full_text": r_clean_text.strip(),
-            })
-
-        return {
-            "status": "success",
-            "answer": found_text,
-            "distance": distance,
-            "images": images,
-            "videos": videos,
-            "audios": audios,
-            "related": related_results,
-        }
-
+def _not_found_payload() -> dict:
     return {
         "status": "not_found",
-        "answer": "Bagyşlaň, bu barada maglumat tapylmady.",
+        "found": False,
+        "answer": NOT_FOUND_MESSAGE,
+        "distance": None,
         "images": [],
         "videos": [],
         "audios": [],
         "related": [],
+    }
+
+
+def _media_from_metadata(metadata: dict | None, parsed_meta: dict) -> tuple[list[str], list[str], list[str]]:
+    images: list[str] = []
+    videos: list[str] = []
+    audios: list[str] = []
+    metadata = metadata or {}
+
+    images_raw = metadata.get("images", "")
+    if images_raw:
+        images = [name.strip() for name in images_raw.split(",") if name.strip()]
+
+    videos_raw = metadata.get("videos", "")
+    if videos_raw:
+        videos = [name.strip() for name in videos_raw.split(",") if name.strip()]
+
+    audios_raw = metadata.get("audios", "")
+    if audios_raw:
+        audios = [name.strip() for name in audios_raw.split(",") if name.strip()]
+
+    if not images and parsed_meta.get("images"):
+        images = [
+            name.strip()
+            for name in parsed_meta["images"].split(",")
+            if name.strip()
+        ]
+    if not videos and parsed_meta.get("videos"):
+        videos = [
+            name.strip()
+            for name in parsed_meta["videos"].split(",")
+            if name.strip()
+        ]
+    if not audios and parsed_meta.get("audios"):
+        audios = [
+            name.strip()
+            for name in parsed_meta["audios"].split(",")
+            if name.strip()
+        ]
+
+    return images, videos, audios
+
+
+@app.get("/search")
+def search_api(query: str = Query(..., description="Вопрос от студента")):
+    normalized = normalize_query(query)
+    if not is_meaningful_query(normalized):
+        return _not_found_payload()
+
+    try:
+        total = collection.count()
+    except Exception:
+        total = 0
+    if total <= 0:
+        return _not_found_payload()
+
+    prepared_query = f"query: {normalized}"
+    query_embedding = model.encode(prepared_query).tolist()
+    n_results = min(8, max(total, 1))
+
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=n_results,
+        include=["documents", "distances", "metadatas"],
+    )
+
+    documents = (results.get("documents") or [[]])[0] or []
+    distances = (results.get("distances") or [[]])[0] or []
+    metadatas = (results.get("metadatas") or [[]])[0] or []
+
+    if not documents:
+        return _not_found_payload()
+
+    best_raw = documents[0]
+    best_distance = float(distances[0])
+    best_clean, parsed_meta = extract_news_metadata(best_raw)
+    best_clean = (best_clean or "").strip()
+
+    if not best_clean or not is_relevant_match(normalized, best_clean, best_distance):
+        return _not_found_payload()
+
+    images, videos, audios = _media_from_metadata(
+        metadatas[0] if metadatas else None,
+        parsed_meta,
+    )
+
+    related_docs: list[str] = []
+    related_distances: list[float] = []
+    for index in range(1, len(documents)):
+        clean_text, _ = extract_news_metadata(documents[index])
+        clean_text = (clean_text or "").strip()
+        if not clean_text:
+            continue
+        related_docs.append(clean_text)
+        related_distances.append(float(distances[index]))
+
+    related = build_related_items(related_docs, related_distances, best_clean)
+
+    return {
+        "status": "success",
+        "found": True,
+        "answer": best_clean,
+        "distance": best_distance,
+        "images": images,
+        "videos": videos,
+        "audios": audios,
+        "related": related,
     }
 
 
@@ -218,9 +251,9 @@ async def upload_media(file: UploadFile = File(...)):
 
 
 def run_database_builder():
-    print("EduCore: Запуск автоматической пересборки ChromaDB...")
+    print("Bilim Çeşmesi: Запуск автоматической пересборки ChromaDB...")
     result = build_database(base_dir, model=model, collection=collection)
-    print(f"EduCore: {result}")
+    print(f"Bilim Çeşmesi: {result}")
 
 
 @app.post("/build")
@@ -238,49 +271,107 @@ class ParagraphUpdate(BaseModel):
     news_preview: str | None = None
 
 
+def _close_chroma() -> None:
+    """Release Windows file locks held by PersistentClient before zip/rmtree."""
+    global db_client, collection
+    collection = None
+    client = db_client
+    db_client = None
+    if client is not None:
+        try:
+            if hasattr(client, "clear_system_cache"):
+                client.clear_system_cache()
+        except Exception:
+            pass
+        del client
+    gc.collect()
+    time.sleep(0.35)
+
+
+def _open_chroma() -> None:
+    global db_client, collection
+    db_client = chromadb.PersistentClient(path=chroma_path)
+    collection = db_client.get_or_create_collection(name="tdbsi_history")
+
+
+def _cleanup_temp(path: str) -> None:
+    try:
+        if path and os.path.isfile(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+
 @app.get("/admin/db/export")
 def admin_export_db():
-    temp_zip = tempfile.mktemp(suffix=".zip")
-    folders_to_zip = ["chroma_db", "data", "images", "videos", "audios"]
-    with zipfile.ZipFile(temp_zip, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for folder in folders_to_zip:
-            folder_path = os.path.join(base_dir, folder)
-            if not os.path.exists(folder_path):
-                continue
-            for root, _, files in os.walk(folder_path):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, base_dir)
-                    zipf.write(file_path, arcname)
-    return FileResponse(temp_zip, filename="EduCore_DB_Export.zip")
+    fd, temp_zip = tempfile.mkstemp(suffix=".zip", prefix="educore_export_")
+    os.close(fd)
+    try:
+        _close_chroma()
+        try:
+            create_export_zip(base_dir, temp_zip)
+        finally:
+            _open_chroma()
+    except Exception as exc:
+        _cleanup_temp(temp_zip)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Eksport şowsuz: {exc}",
+        ) from exc
+
+    return FileResponse(
+        temp_zip,
+        filename="BilimCesmesi_DB_Export.zip",
+        media_type="application/zip",
+        background=BackgroundTask(_cleanup_temp, temp_zip),
+    )
+
 
 @app.post("/admin/db/import")
 async def admin_import_db(file: UploadFile = File(...)):
-    global db_client, collection
-    temp_zip = tempfile.mktemp(suffix=".zip")
-    with open(temp_zip, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
-    # clear existing
-    folders_to_clear = ["chroma_db", "data", "images", "videos", "audios"]
-    for folder in folders_to_clear:
-        folder_path = os.path.join(base_dir, folder)
-        if os.path.exists(folder_path):
-            shutil.rmtree(folder_path, ignore_errors=True)
-            
-    # extract
-    with zipfile.ZipFile(temp_zip, "r") as zipf:
-        zipf.extractall(base_dir)
-        
-    os.remove(temp_zip)
-    
-    # re-init chromadb
-    for folder in folders_to_clear:
-        os.makedirs(os.path.join(base_dir, folder), exist_ok=True)
-    db_client = chromadb.PersistentClient(path=chroma_path)
-    collection = db_client.get_or_create_collection(name="tdbsi_history")
-    
-    return {"status": "success", "message": "Database imported successfully."}
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Diňe .zip faýl goldanylýar.")
+
+    fd, temp_zip = tempfile.mkstemp(suffix=".zip", prefix="educore_import_")
+    os.close(fd)
+    try:
+        with open(temp_zip, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        _close_chroma()
+        try:
+            extracted = import_from_zip(base_dir, temp_zip)
+        except ValueError as exc:
+            _open_chroma()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            _open_chroma()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Import şowsuz: {exc}",
+            ) from exc
+        finally:
+            _cleanup_temp(temp_zip)
+
+        _open_chroma()
+        return {
+            "status": "success",
+            "message": "Database imported successfully.",
+            "files": extracted,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _cleanup_temp(temp_zip)
+        try:
+            _open_chroma()
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=500,
+            detail=f"Import şowsuz: {exc}",
+        ) from exc
 
 @app.post("/admin/parse-document")
 async def admin_parse_document(file: UploadFile = File(...)):
