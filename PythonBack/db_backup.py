@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import zipfile
+from datetime import datetime
 
 DB_CONTENT_FOLDERS = ("chroma_db", "data", "images", "videos", "audios")
 DB_ROOT_FILES = ("welcome_settings.json",)
 LOGO_PREFIX = "institute_logo."
 LOGO_EXTENSIONS = (".png", ".jpg", ".jpeg")
+BACKUPS_DIR_NAME = "backups"
+AUTO_BACKUP_KEEP = 5
+_AUTO_BACKUP_RE = re.compile(r"^auto_backup_\d{8}_\d{6}\.zip$", re.IGNORECASE)
 
 
 def _iter_export_files(base_dir: str) -> list[tuple[str, str]]:
@@ -50,6 +55,36 @@ def create_export_zip(base_dir: str, zip_path: str) -> int:
         for file_path, arcname in entries:
             zipf.write(file_path, arcname)
     return len(entries)
+
+
+def create_auto_backup(base_dir: str, keep: int = AUTO_BACKUP_KEEP) -> str:
+    """
+    Write a timestamped ZIP under backups/ and prune older auto backups.
+    Returns the created zip filename (not full path).
+    """
+    backups_dir = os.path.join(base_dir, BACKUPS_DIR_NAME)
+    os.makedirs(backups_dir, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"auto_backup_{stamp}.zip"
+    zip_path = os.path.join(backups_dir, filename)
+    create_export_zip(base_dir, zip_path)
+
+    existing = sorted(
+        (
+            name
+            for name in os.listdir(backups_dir)
+            if _AUTO_BACKUP_RE.match(name)
+            and os.path.isfile(os.path.join(backups_dir, name))
+        ),
+        reverse=True,
+    )
+    for stale in existing[max(0, keep) :]:
+        try:
+            os.remove(os.path.join(backups_dir, stale))
+        except OSError:
+            pass
+
+    return filename
 
 
 def _clear_db_content(base_dir: str) -> None:

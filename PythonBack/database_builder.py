@@ -21,6 +21,7 @@ AUDIO_TAG_RE = re.compile(
 )
 NEWS_TAG_RE = re.compile(r"\[news\]", re.IGNORECASE)
 PREVIEW_TAG_RE = re.compile(r"\[preview\s*:\s*([^\]]+)\]", re.IGNORECASE)
+NEWS_ORDER_TAG_RE = re.compile(r"\[news_order\s*:\s*([^\]]+)\]", re.IGNORECASE)
 
 
 def _split_media(raw: str) -> list[str]:
@@ -35,8 +36,13 @@ def extract_news_metadata(text: str) -> tuple[str, dict[str, str]]:
     is_news = bool(NEWS_TAG_RE.search(text))
     preview_match = PREVIEW_TAG_RE.search(text)
     news_preview = preview_match.group(1).strip() if preview_match else ""
+    order_match = NEWS_ORDER_TAG_RE.search(text)
+    news_order = ""
+    if order_match:
+        news_order = order_match.group(1).strip()
 
     clean_text = PREVIEW_TAG_RE.sub("", text)
+    clean_text = NEWS_ORDER_TAG_RE.sub("", clean_text)
     clean_text = NEWS_TAG_RE.sub("", clean_text)
     clean_text, metadata = _extract_media_tags(clean_text)
 
@@ -44,6 +50,8 @@ def extract_news_metadata(text: str) -> tuple[str, dict[str, str]]:
         metadata["is_news"] = "true"
     if news_preview:
         metadata["news_preview"] = news_preview
+    if news_order:
+        metadata["news_order"] = news_order
 
     return clean_text, metadata
 

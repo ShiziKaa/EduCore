@@ -7,7 +7,7 @@ import tempfile
 import unittest
 import zipfile
 
-from db_backup import create_export_zip, import_from_zip
+from db_backup import create_auto_backup, create_export_zip, import_from_zip
 
 
 class DbBackupTests(unittest.TestCase):
@@ -101,6 +101,15 @@ class DbBackupTests(unittest.TestCase):
             import_from_zip(base, zip_path)
             self.assertTrue(os.path.isfile(os.path.join(base, "data", "ok.txt")))
             self.assertFalse(os.path.isfile(os.path.join(tmp, "escape.txt")))
+
+    def test_auto_backup_creates_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self._seed_db(tmp)
+            name = create_auto_backup(tmp, keep=2)
+            self.assertTrue(name.startswith("auto_backup_"))
+            self.assertTrue(
+                os.path.isfile(os.path.join(tmp, "backups", name))
+            )
 
 
 if __name__ == "__main__":

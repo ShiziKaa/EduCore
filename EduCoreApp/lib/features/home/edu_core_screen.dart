@@ -15,6 +15,7 @@ import '../../core/search_service.dart';
 import '../../core/models/welcome_settings.dart';
 import '../../core/services/welcome_settings_service.dart';
 import '../../core/services/institute_logo_service.dart';
+import '../../core/services/search_history_service.dart';
 import '../admin/admin_panel_route.dart';
 import '../shared/answer_images_reveal.dart';
 import '../shared/answer_videos_row.dart';
@@ -68,6 +69,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
   List<NewsItem> _newsItems = [];
   String? _articlePreviewImage;
   WelcomeSettings _welcomeSettings = WelcomeSettings.defaults;
+  List<String> _recentSearches = [];
 
   Timer? _streamingTimer;
   DateTime? _streamStartTime;
@@ -78,8 +80,15 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
     super.initState();
     _loadInstituteLogo();
     _loadWelcomeSettings();
+    _loadSearchHistory();
     _bootstrapServer();
     _loadNews();
+  }
+
+  Future<void> _loadSearchHistory() async {
+    final items = await SearchHistoryService.load();
+    if (!mounted) return;
+    setState(() => _recentSearches = items);
   }
 
   Future<void> _loadWelcomeSettings() async {
@@ -251,6 +260,11 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
     _searchFocus.unfocus();
     _scrollToBottomIfNeeded();
 
+    final history = await SearchHistoryService.add(question);
+    if (mounted) {
+      setState(() => _recentSearches = history);
+    }
+
     try {
       await _serverService.ensureRunning();
       final result = await _searchService.search(question);
@@ -404,9 +418,14 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
                                         focusNode: _searchFocus,
                                         enabled: searchEnabled,
                                         instituteLogo: _instituteLogo,
+                                        recentSearches: _recentSearches,
                                         onSearch: _processSearch,
                                         onQuickTag: (tag) {
                                           _controller.text = tag;
+                                          _processSearch();
+                                        },
+                                        onRecentSearch: (query) {
+                                          _controller.text = query;
                                           _processSearch();
                                         },
                                       ),

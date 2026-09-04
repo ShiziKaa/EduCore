@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/admin_messages.dart';
 import '../../core/admin_document_service.dart';
-import '../../core/admin_upload_service.dart';
 import '../../core/ai_server_service.dart';
 import '../../core/app_constants.dart';
 import '../../core/models/admin_draft.dart';
@@ -13,12 +12,13 @@ import '../../core/models/admin_paragraph.dart';
 import '../../core/services/institute_logo_service.dart';
 import '../../core/services/desktop_window_service.dart';
 import 'admin_confirm_dialog.dart';
+import 'admin_kb_panel.dart';
 import 'admin_media_preview.dart';
 import 'admin_toast_stack.dart';
 import 'admin_welcome_settings_panel.dart';
 import '../shared/background_glow.dart';
 
-enum _AdminMode { constructor, welcome }
+enum _AdminMode { constructor, knowledgeBase, welcome }
 enum _MediaType { image, video, audio }
 
 class AdminPanelScreen extends StatefulWidget {
@@ -30,9 +30,9 @@ class AdminPanelScreen extends StatefulWidget {
 
 class _AdminPanelScreenState extends State<AdminPanelScreen> {
   final AdminDocumentService _documentService = AdminDocumentService();
-  final AdminUploadService _uploadService = AdminUploadService();
   final AiServerService _serverService = AiServerService();
   final TextEditingController _editorController = TextEditingController();
+  final GlobalKey<AdminKbPanelState> _kbKey = GlobalKey<AdminKbPanelState>();
 
   AdminDraft? _draft;
   int? _selectedIndex;
@@ -42,6 +42,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   File? _instituteLogoPreview;
   final List<AdminToastData> _toasts = [];
   int _toastCounter = 0;
+  bool _kbDirty = false;
 
   @override
   void initState() {
@@ -401,6 +402,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       paragraph.isNews = value;
       if (!value) {
         paragraph.newsPreview = null;
+        paragraph.newsOrder = null;
       }
       paragraph.isSaved = false;
     });
@@ -413,7 +415,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       context,
       title: 'Bazany täzele',
       message:
-          'Maglumat bazasy täzeden gurlar. Bu birnäçe minut alýar. Dowam etmek isleýärsiňizmi?',
+          'Awto-backup edilip, maglumat bazasy täzeden gurlar. Bu birnäçe minut alýar. Dowam etmek isleýärsiňizmi?',
       confirmLabel: 'Täzele',
     );
     if (!confirmed || !mounted) return;
@@ -422,7 +424,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
     try {
       await _ensureServer();
-      await _uploadService.rebuildDatabase();
+      final result = await _documentService.rebuildDatabase();
       if (!mounted) return;
       setState(() {
         _draft = null;
@@ -430,12 +432,63 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         _isDraftFinalized = false;
         _editorController.clear();
       });
-      _showToast('Maglumat bazasy üstünlikli täzelendi.');
+      final backup = result['backup']?.toString();
+      if (backup != null && backup.isNotEmpty) {
+        _showToast('Backup: $backup. Maglumat bazasy täzelendi.');
+      } else {
+        _showToast('Maglumat bazasy üstünlikli täzelendi.');
+      }
     } catch (e) {
       _showToast(AdminMessages.friendlyError(e), error: true);
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
+  }
+
+  Future<bool> _confirmLeaveIfDirty() async {
+    final constructorDirty =
+        _isEditingDraft && _draft!.paragraphs.any((p) => !p.isSaved);
+    final dirty = constructorDirty || _kbDirty;
+    if (!dirty) return true;
+
+    return showAdminConfirmDialog(
+      context,
+      title: 'Ýazylmadyk üýtgetmeler',
+      message:
+          'Ýazylmadyk üýtgetmeler bar. Çykylsa olar ýitip biler. Dowam etmeli mi?',
+      confirmLabel: 'Çyk',
+    );
+  }
+
+  Future<void> _handleBack() async {
+    if (!await _confirmLeaveIfDirty()) return;
+    if (!mounted) return;
+    Navigator.of(context).maybePop();
+  }
+
+  Future<void> _changeMode(_AdminMode mode) async {
+    if (mode == _mode) return;
+    if (_mode == _AdminMode.knowledgeBase && _kbDirty) {
+      final ok = await showAdminConfirmDialog(
+        context,
+        title: 'Ýazylmadyk üýtgetmeler',
+        message: 'Bazany redaktirlemekde ýazylmadyk üýtgetmeler bar. Çalyşmaly my?',
+        confirmLabel: 'Çalyş',
+      );
+      if (!ok || !mounted) return;
+    }
+    if (_mode == _AdminMode.constructor &&
+        _isEditingDraft &&
+        _draft!.paragraphs.any((p) => !p.isSaved)) {
+      final ok = await showAdminConfirmDialog(
+        context,
+        title: 'Ýazylmadyk üýtgetmeler',
+        message: 'Draft-da ýazylmadyk üýtgetmeler bar. Çalyşmaly my?',
+        confirmLabel: 'Çalyş',
+      );
+      if (!ok || !mounted) return;
+    }
+    setState(() => _mode = mode);
   }
 
   Future<void> _importInstituteLogo() async {
@@ -528,7 +581,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     final paragraph = _selectedParagraph;
     final draft = _draft;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        if (!await _confirmLeaveIfDirty()) return;
+        if (!mounted) return;
+        navigator.pop(result);
+      },
+      child: Scaffold(
       backgroundColor: colors.surface,
       body: Stack(
         children: [
@@ -544,8 +606,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   mode: _mode,
                   draftName: draft?.sourceFilename,
                   isDraftFinalized: _isDraftFinalized,
-                  onBack: () => Navigator.of(context).maybePop(),
-                  onModeChanged: (mode) => setState(() => _mode = mode),
+                  onBack: _handleBack,
+                  onModeChanged: _changeMode,
                   onImportDocument: _importDocument,
                   onExportDatabase: _exportDatabase,
                   onImportDatabase: _importDatabase,
@@ -558,60 +620,80 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   canFinalize: _isEditingDraft,
                 ),
                 Expanded(
-                  child: _mode == _AdminMode.welcome
-                      ? AdminWelcomeSettingsPanel(
-                          colors: colors,
-                          instituteLogo: _instituteLogoPreview,
-                          onImportLogo: _importInstituteLogo,
-                          onSaved: () {},
-                          onToast: _showToast,
-                        )
-                      : draft == null
-                      ? _EmptyConstructorState(colors: colors)
-                      : Row(
-                          children: [
-                            _ParagraphExplorer(
-                              colors: colors,
-                              paragraphs: draft.paragraphs,
-                              selectedIndex: _selectedIndex,
-                              onSelect: _selectParagraph,
-                            ),
-                            VerticalDivider(
-                              width: 1,
-                              color: colors.outlineVariant,
-                            ),
-                            Expanded(
-                              child: _ParagraphEditor(
+                  child: switch (_mode) {
+                    _AdminMode.welcome => AdminWelcomeSettingsPanel(
+                      colors: colors,
+                      instituteLogo: _instituteLogoPreview,
+                      onImportLogo: _importInstituteLogo,
+                      onSaved: () {},
+                      onToast: _showToast,
+                    ),
+                    _AdminMode.knowledgeBase => AdminKbPanel(
+                      key: _kbKey,
+                      colors: colors,
+                      onToast: (message, {error = false}) =>
+                          _showToast(message, error: error),
+                      onDirtyChanged: (dirty) {
+                        if (_kbDirty != dirty) {
+                          setState(() => _kbDirty = dirty);
+                        }
+                      },
+                      onProcessingChanged: (value) {
+                        if (_isProcessing != value) {
+                          setState(() => _isProcessing = value);
+                        }
+                      },
+                    ),
+                    _AdminMode.constructor => draft == null
+                        ? _EmptyConstructorState(colors: colors)
+                        : Row(
+                            children: [
+                              _ParagraphExplorer(
                                 colors: colors,
-                                controller: _editorController,
+                                paragraphs: draft.paragraphs,
                                 selectedIndex: _selectedIndex,
-                                paragraph: paragraph,
-                                onChanged: () {
-                                  final current = _selectedParagraph;
-                                  if (current != null) {
-                                    current.isSaved = false;
-                                  }
-                                },
+                                onSelect: _selectParagraph,
                               ),
-                            ),
-                            VerticalDivider(
-                              width: 1,
-                              color: colors.outlineVariant,
-                            ),
-                            _ParagraphActions(
-                              colors: colors,
-                              paragraph: paragraph,
-                              isProcessing: _isProcessing,
-                              onAddImage: () => _addMedia(type: _MediaType.image),
-                              onAddVideo: () => _addMedia(type: _MediaType.video),
-                              onAddAudio: () => _addMedia(type: _MediaType.audio),
-                              onRemoveAudio: _removeAudio,
-                              onToggleNews: _toggleNews,
-                              onPickPreview: _pickNewsPreview,
-                              onSaveParagraph: _saveCurrentParagraph,
-                            ),
-                          ],
-                        ),
+                              VerticalDivider(
+                                width: 1,
+                                color: colors.outlineVariant,
+                              ),
+                              Expanded(
+                                child: _ParagraphEditor(
+                                  colors: colors,
+                                  controller: _editorController,
+                                  selectedIndex: _selectedIndex,
+                                  paragraph: paragraph,
+                                  onChanged: () {
+                                    final current = _selectedParagraph;
+                                    if (current != null) {
+                                      current.isSaved = false;
+                                    }
+                                  },
+                                ),
+                              ),
+                              VerticalDivider(
+                                width: 1,
+                                color: colors.outlineVariant,
+                              ),
+                              _ParagraphActions(
+                                colors: colors,
+                                paragraph: paragraph,
+                                isProcessing: _isProcessing,
+                                onAddImage: () =>
+                                    _addMedia(type: _MediaType.image),
+                                onAddVideo: () =>
+                                    _addMedia(type: _MediaType.video),
+                                onAddAudio: () =>
+                                    _addMedia(type: _MediaType.audio),
+                                onRemoveAudio: _removeAudio,
+                                onToggleNews: _toggleNews,
+                                onPickPreview: _pickNewsPreview,
+                                onSaveParagraph: _saveCurrentParagraph,
+                              ),
+                            ],
+                          ),
+                  },
                 ),
               ],
             ),
@@ -633,6 +715,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             ),
         ],
       ),
+    ),
     );
   }
 }
@@ -696,6 +779,11 @@ class _AdminToolbar extends StatelessWidget {
                   value: _AdminMode.constructor,
                   label: Text('Konstruktor'),
                   icon: Icon(Icons.account_tree_outlined, size: 18),
+                ),
+                ButtonSegment(
+                  value: _AdminMode.knowledgeBase,
+                  label: Text('Baza'),
+                  icon: Icon(Icons.edit_note_outlined, size: 18),
                 ),
                 ButtonSegment(
                   value: _AdminMode.welcome,
@@ -1099,7 +1187,7 @@ class _ParagraphActions extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Baş sahypadaky karusel üçin preview suraty hökmany.',
+                      'Baş sahypadaky karusel üçin preview suraty hökmany. Tertibi «Baza» panelinde belläp bilersiňiz.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colors.onSurfaceVariant,
                       ),

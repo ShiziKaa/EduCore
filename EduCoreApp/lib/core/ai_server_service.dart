@@ -93,7 +93,26 @@ class AiServerService {
           sendTimeout: const Duration(seconds: 3),
         ),
       );
-      return response.statusCode == 200;
+      if (response.statusCode != 200) return false;
+
+      final data = response.data;
+      if (data is! Map) return false;
+      final map = Map<String, dynamic>.from(data);
+      if (map['status']?.toString() != 'ok') return false;
+
+      // Prefer explicit service marker from current Bilim backend.
+      final service = map['service']?.toString();
+      if (service == 'bilim-cesmesi') return true;
+
+      // Reject foreign /health payloads (e.g. other local AI stacks on :8000).
+      if (map.containsKey('gemini_configured') ||
+          map.containsKey('gemini_live_enabled') ||
+          map.containsKey('version')) {
+        return false;
+      }
+
+      // Legacy Bilim health: {"status":"ok"} only.
+      return map.keys.length <= 2;
     } catch (_) {
       return false;
     }

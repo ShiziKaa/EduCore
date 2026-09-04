@@ -29,12 +29,20 @@ import time
 from starlette.background import BackgroundTask
 
 from database_builder import build_database, extract_news_metadata
-from db_backup import create_export_zip, import_from_zip
+from db_backup import create_auto_backup, create_export_zip, import_from_zip
 from document_admin import (
+    add_kb_paragraph,
     create_draft_from_file,
+    delete_kb_paragraph,
     drafts_dir,
+    duplicate_kb_paragraph,
+    export_paragraphs_text,
     finalize_draft,
+    kb_stats,
+    list_kb_paragraphs,
     load_draft,
+    save_kb_file,
+    update_kb_paragraph,
     update_paragraph,
 )
 from search_quality import (
@@ -100,7 +108,7 @@ print("Bilim Çeşmesi AI микросервис успешно запущен �
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "service": "bilim-cesmesi"}
 
 
 def _not_found_payload() -> dict:
@@ -257,9 +265,34 @@ def run_database_builder():
 
 
 @app.post("/build")
-async def build_database_endpoint(background_tasks: BackgroundTasks):
+async def build_database_endpoint(
+    background_tasks: BackgroundTasks,
+    auto_backup: bool = True,
+):
+    backup_name: str | None = None
+    if auto_backup:
+        try:
+            _close_chroma()
+            try:
+                backup_name = create_auto_backup(base_dir)
+            finally:
+                _open_chroma()
+        except Exception as exc:
+            try:
+                _open_chroma()
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=500,
+                detail=f"Awto-backup şowsuz: {exc}",
+            ) from exc
+
     background_tasks.add_task(run_database_builder)
-    return {"status": "started", "message": "Gözleg bazasy täzelenýär..."}
+    return {
+        "status": "started",
+        "message": "Gözleg bazasy täzelenýär...",
+        "backup": backup_name,
+    }
 
 
 class ParagraphUpdate(BaseModel):
@@ -269,6 +302,34 @@ class ParagraphUpdate(BaseModel):
     audios: list[str] = []
     is_news: bool = False
     news_preview: str | None = None
+    news_order: int | None = None
+
+
+class KbParagraphUpdate(BaseModel):
+    source: str
+    index: int
+    text: str
+    images: list[str] = []
+    videos: list[str] = []
+    audios: list[str] = []
+    is_news: bool = False
+    news_preview: str | None = None
+    news_order: int | None = None
+
+
+class KbSaveFileRequest(BaseModel):
+    source: str
+    paragraphs: list[ParagraphUpdate]
+
+
+class KbMutateRequest(BaseModel):
+    source: str
+    index: int
+    text: str | None = None
+
+
+class KbExportRequest(BaseModel):
+    paragraphs: list[ParagraphUpdate]
 
 
 def _close_chroma() -> None:
@@ -428,7 +489,116 @@ def admin_finalize_draft(draft_id: str):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/admin/kb/paragraphs")
+def admin_kb_list_paragraphs(
+    q: str = Query("", alias="q"),
+    news_only: bool = Query(False),
+):
+    try:
+        return list_kb_paragraphs(base_dir, query=q, news_only=news_only)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/admin/kb/stats")
+def admin_kb_stats():
+    try:
+        return kb_stats(base_dir)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.put("/admin/kb/paragraphs")
+def admin_kb_update_paragraph(payload: KbParagraphUpdate):
+    try:
+        return update_kb_paragraph(
+            base_dir,
+            payload.source,
+            payload.index,
+            payload.model_dump(),
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except IndexError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/admin/kb/save")
+def admin_kb_save_file(payload: KbSaveFileRequest):
+    try:
+        return save_kb_file(
+            base_dir,
+            payload.source,
+            [item.model_dump() for item in payload.paragraphs],
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/admin/kb/paragraphs/add")
+def admin_kb_add_paragraph(payload: KbMutateRequest):
+    try:
+        return add_kb_paragraph(
+            base_dir,
+            payload.source,
+            after_index=payload.index,
+            text=payload.text or "Täze abzas",
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/admin/kb/paragraphs/delete")
+def admin_kb_delete_paragraph(payload: KbMutateRequest):
+    try:
+        return delete_kb_paragraph(base_dir, payload.source, payload.index)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except IndexError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/admin/kb/paragraphs/duplicate")
+def admin_kb_duplicate_paragraph(payload: KbMutateRequest):
+    try:
+        return duplicate_kb_paragraph(base_dir, payload.source, payload.index)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except IndexError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/admin/kb/export-text")
+def admin_kb_export_text(payload: KbExportRequest):
+    try:
+        text = export_paragraphs_text(
+            [item.model_dump() for item in payload.paragraphs]
+        )
+        return {"status": "success", "text": text}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 MAX_NEWS_ITEMS = 15
+
+
+def _news_order_key(item: dict) -> tuple[int, int, int]:
+    raw = item.get("news_order")
+    try:
+        order = int(raw)
+        return (0, order, -int(item.get("_index", 0)))
+    except (TypeError, ValueError):
+        return (1, 0, -int(item.get("_index", 0)))
 
 
 @app.get("/news")
@@ -440,7 +610,7 @@ def news_api():
 
     documents = all_data.get("documents") or []
     metadatas = all_data.get("metadatas") or []
-    items: list[dict[str, str]] = []
+    items: list[dict] = []
 
     for index, metadata in enumerate(metadatas):
         if not metadata or metadata.get("is_news") != "true":
@@ -454,13 +624,22 @@ def news_api():
         if not text:
             continue
 
-        items.append({"text": text, "preview": preview})
+        items.append(
+            {
+                "text": text,
+                "preview": preview,
+                "news_order": metadata.get("news_order"),
+                "_index": index,
+            }
+        )
 
-    if len(items) > MAX_NEWS_ITEMS:
-        items = items[-MAX_NEWS_ITEMS:]
-
-    items.reverse()
-    return {"items": items}
+    items.sort(key=_news_order_key)
+    items = items[:MAX_NEWS_ITEMS]
+    return {
+        "items": [
+            {"text": item["text"], "preview": item["preview"]} for item in items
+        ]
+    }
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ void main() {
         audios: const ['c.mp3'],
         isNews: true,
         newsPreview: 'preview.png',
+        newsOrder: 2,
         isSaved: true,
       );
 
@@ -37,6 +38,7 @@ void main() {
       expect(payload['audios'], ['c.mp3']);
       expect(payload['is_news'], isTrue);
       expect(payload['news_preview'], 'preview.png');
+      expect(payload['news_order'], 2);
 
       final restored = AdminParagraph.fromJson({
         'index': 2,
@@ -46,12 +48,23 @@ void main() {
         'audios': payload['audios'],
         'is_news': payload['is_news'],
         'news_preview': payload['news_preview'],
+        'news_order': payload['news_order'],
         'is_saved': true,
       });
 
       expect(restored.audios, ['c.mp3']);
       expect(restored.isNews, isTrue);
+      expect(restored.newsOrder, 2);
       expect(restored.copyWith(clearNewsPreview: true).newsPreview, isNull);
+
+      final fromStringOrder = AdminParagraph.fromJson({
+        'index': '4',
+        'text': 'x',
+        'news_order': '7',
+        'is_news': false,
+      });
+      expect(fromStringOrder.index, 4);
+      expect(fromStringOrder.newsOrder, 7);
     });
 
     test('NewsItem parses empty-safe json', () {

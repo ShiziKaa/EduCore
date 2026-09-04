@@ -16,6 +16,8 @@ class WelcomeScreen extends StatelessWidget {
     required this.enabled,
     required this.onSearch,
     required this.onQuickTag,
+    this.recentSearches = const [],
+    this.onRecentSearch,
     this.instituteLogo,
   });
 
@@ -26,6 +28,8 @@ class WelcomeScreen extends StatelessWidget {
   final bool enabled;
   final VoidCallback onSearch;
   final ValueChanged<String> onQuickTag;
+  final List<String> recentSearches;
+  final ValueChanged<String>? onRecentSearch;
   final File? instituteLogo;
 
   @override
@@ -67,6 +71,38 @@ class WelcomeScreen extends StatelessWidget {
           enabled: enabled,
           onSubmitted: onSearch,
         ),
+        if (recentSearches.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Soňky gözlegler',
+              style: textTheme.labelMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.start,
+            spacing: 8,
+            runSpacing: 8,
+            children: recentSearches
+                .take(8)
+                .map(
+                  (query) => ActionChip(
+                    label: Text(
+                      query.length > 40 ? '${query.substring(0, 40)}…' : query,
+                    ),
+                    onPressed: enabled && onRecentSearch != null
+                        ? () => onRecentSearch!(query)
+                        : null,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                )
+                .toList(),
+          ),
+        ],
         if (settings.quickTags.isNotEmpty) ...[
           const SizedBox(height: 28),
           Wrap(
