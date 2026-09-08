@@ -409,7 +409,7 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
                                     ),
                                     child: ConstrainedBox(
                                       constraints: const BoxConstraints(
-                                        maxWidth: 720,
+                                        maxWidth: 640,
                                       ),
                                       child: WelcomeScreen(
                                         colors: colors,
@@ -418,20 +418,34 @@ class _EduCoreScreenState extends State<EduCoreScreen> {
                                         focusNode: _searchFocus,
                                         enabled: searchEnabled,
                                         instituteLogo: _instituteLogo,
-                                        recentSearches: _recentSearches,
                                         onSearch: _processSearch,
                                         onQuickTag: (tag) {
                                           _controller.text = tag;
-                                          _processSearch();
-                                        },
-                                        onRecentSearch: (query) {
-                                          _controller.text = query;
                                           _processSearch();
                                         },
                                       ),
                                     ),
                                   ),
                                 ),
+                                if (_recentSearches.isNotEmpty)
+                                  Positioned(
+                                    top: 0,
+                                    left: 12,
+                                    child: RecentSearchHistoryPanel(
+                                      colors: colors,
+                                      searches: _recentSearches,
+                                      enabled: searchEnabled,
+                                      onSelect: (query) {
+                                        _controller.text = query;
+                                        _processSearch();
+                                      },
+                                      onClear: () async {
+                                        await SearchHistoryService.clear();
+                                        if (!mounted) return;
+                                        setState(() => _recentSearches = []);
+                                      },
+                                    ),
+                                  ),
                                 if (hasNews)
                                   Positioned(
                                     top: 0,

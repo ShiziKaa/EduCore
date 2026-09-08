@@ -12,6 +12,9 @@ class AdminMediaPreviewGrid extends StatelessWidget {
     this.audioNames = const [],
     this.newsPreview,
     this.onRemoveAudio,
+    this.onRemoveImage,
+    this.onRemoveVideo,
+    this.onRemoveNewsPreview,
   });
 
   final List<String> imageNames;
@@ -20,6 +23,9 @@ class AdminMediaPreviewGrid extends StatelessWidget {
   final ColorScheme colors;
   final String? newsPreview;
   final ValueChanged<String>? onRemoveAudio;
+  final ValueChanged<String>? onRemoveImage;
+  final ValueChanged<String>? onRemoveVideo;
+  final VoidCallback? onRemoveNewsPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -29,10 +35,14 @@ class AdminMediaPreviewGrid extends StatelessWidget {
       children.addAll([
         Text('Preview', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 8),
-        _AdminImageThumb(
-          fileName: newsPreview!,
-          colors: colors,
-          highlight: true,
+        SizedBox(
+          width: 124,
+          child: _AdminImageThumb(
+            fileName: newsPreview!,
+            colors: colors,
+            highlight: true,
+            onRemove: onRemoveNewsPreview,
+          ),
         ),
         const SizedBox(height: 16),
       ]);
@@ -49,7 +59,13 @@ class AdminMediaPreviewGrid extends StatelessWidget {
               .map(
                 (name) => SizedBox(
                   width: 124,
-                  child: _AdminImageThumb(fileName: name, colors: colors),
+                  child: _AdminImageThumb(
+                    fileName: name,
+                    colors: colors,
+                    onRemove: onRemoveImage == null
+                        ? null
+                        : () => onRemoveImage!(name),
+                  ),
                 ),
               )
               .toList(),
@@ -65,7 +81,13 @@ class AdminMediaPreviewGrid extends StatelessWidget {
         ...videoNames.map(
           (name) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: _AdminVideoThumb(fileName: name, colors: colors),
+            child: _AdminVideoThumb(
+              fileName: name,
+              colors: colors,
+              onRemove: onRemoveVideo == null
+                  ? null
+                  : () => onRemoveVideo!(name),
+            ),
           ),
         ),
       ]);
@@ -118,11 +140,13 @@ class _AdminImageThumb extends StatelessWidget {
     required this.fileName,
     required this.colors,
     this.highlight = false,
+    this.onRemove,
   });
 
   final String fileName;
   final ColorScheme colors;
   final bool highlight;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -132,28 +156,59 @@ class _AdminImageThumb extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            height: 84,
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: highlight
-                    ? colors.primary
-                    : (isDark
-                        ? const Color(0xFF3C4043)
-                        : colors.outlineVariant),
-              ),
+        Stack(
+          children: [
+            ClipRRect(
               borderRadius: BorderRadius.circular(8),
-            ),
-            child: file != null
-                ? Image.file(file, fit: BoxFit.cover)
-                : ColoredBox(
-                    color: colors.surfaceContainerHighest,
-                    child: Icon(Icons.broken_image_outlined,
-                        color: colors.outline),
+              child: Container(
+                height: 84,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: highlight
+                        ? colors.primary
+                        : (isDark
+                            ? const Color(0xFF3C4043)
+                            : colors.outlineVariant),
                   ),
-          ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: file != null
+                    ? Image.file(file, fit: BoxFit.cover)
+                    : ColoredBox(
+                        color: colors.surfaceContainerHighest,
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: colors.outline,
+                        ),
+                      ),
+              ),
+            ),
+            if (onRemove != null)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Material(
+                  color: colors.surface.withValues(alpha: 0.88),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    tooltip: 'Öçür',
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
+                    onPressed: onRemove,
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      size: 18,
+                      color: colors.error,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 4),
         Text(
@@ -171,10 +226,12 @@ class _AdminVideoThumb extends StatefulWidget {
   const _AdminVideoThumb({
     required this.fileName,
     required this.colors,
+    this.onRemove,
   });
 
   final String fileName;
   final ColorScheme colors;
+  final VoidCallback? onRemove;
 
   @override
   State<_AdminVideoThumb> createState() => _AdminVideoThumbState();
@@ -267,13 +324,37 @@ class _AdminVideoThumbState extends State<_AdminVideoThumb> {
                   ),
                 const Positioned(
                   top: 6,
-                  right: 6,
+                  left: 6,
                   child: Icon(
                     Icons.play_circle_outline,
                     color: Colors.white70,
                     size: 20,
                   ),
                 ),
+                if (widget.onRemove != null)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Material(
+                      color: widget.colors.surface.withValues(alpha: 0.88),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: 'Wideo öçür',
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
+                        onPressed: widget.onRemove,
+                        icon: Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: widget.colors.error,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

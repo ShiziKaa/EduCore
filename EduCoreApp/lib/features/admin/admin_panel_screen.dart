@@ -358,6 +358,43 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     _showToast('Audio öçürildi.');
   }
 
+  void _removeImage(String fileName) {
+    final paragraph = _selectedParagraph;
+    if (paragraph == null) return;
+
+    setState(() {
+      paragraph.images = paragraph.images
+          .where((name) => name != fileName)
+          .toList();
+      paragraph.isSaved = false;
+    });
+    _showToast('Surat öçürildi.');
+  }
+
+  void _removeVideo(String fileName) {
+    final paragraph = _selectedParagraph;
+    if (paragraph == null) return;
+
+    setState(() {
+      paragraph.videos = paragraph.videos
+          .where((name) => name != fileName)
+          .toList();
+      paragraph.isSaved = false;
+    });
+    _showToast('Wideo öçürildi.');
+  }
+
+  void _removeNewsPreview() {
+    final paragraph = _selectedParagraph;
+    if (paragraph == null) return;
+
+    setState(() {
+      paragraph.newsPreview = null;
+      paragraph.isSaved = false;
+    });
+    _showToast('Preview öçürildi.');
+  }
+
   Future<void> _pickNewsPreview() async {
     final paragraph = _selectedParagraph;
     if (paragraph == null) {
@@ -687,6 +724,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 onAddAudio: () =>
                                     _addMedia(type: _MediaType.audio),
                                 onRemoveAudio: _removeAudio,
+                                onRemoveImage: _removeImage,
+                                onRemoveVideo: _removeVideo,
+                                onRemoveNewsPreview: _removeNewsPreview,
                                 onToggleNews: _toggleNews,
                                 onPickPreview: _pickNewsPreview,
                                 onSaveParagraph: _saveCurrentParagraph,
@@ -1098,6 +1138,9 @@ class _ParagraphActions extends StatelessWidget {
     required this.onAddVideo,
     required this.onAddAudio,
     required this.onRemoveAudio,
+    required this.onRemoveImage,
+    required this.onRemoveVideo,
+    required this.onRemoveNewsPreview,
     required this.onToggleNews,
     required this.onPickPreview,
     required this.onSaveParagraph,
@@ -1110,6 +1153,9 @@ class _ParagraphActions extends StatelessWidget {
   final VoidCallback onAddVideo;
   final VoidCallback onAddAudio;
   final ValueChanged<String> onRemoveAudio;
+  final ValueChanged<String> onRemoveImage;
+  final ValueChanged<String> onRemoveVideo;
+  final VoidCallback onRemoveNewsPreview;
   final ValueChanged<bool> onToggleNews;
   final VoidCallback onPickPreview;
   final VoidCallback onSaveParagraph;
@@ -1187,7 +1233,7 @@ class _ParagraphActions extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Baş sahypadaky karusel üçin preview suraty hökmany. Tertibi «Baza» panelinde belläp bilersiňiz.',
+                      'Baş sahypadaky karusel üçin preview suraty hökmany. Tertibi «Baza» panelinde süýräp belläň.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colors.onSurfaceVariant,
                       ),
@@ -1208,6 +1254,10 @@ class _ParagraphActions extends StatelessWidget {
                           : null,
                       colors: colors,
                       onRemoveAudio: isProcessing ? null : onRemoveAudio,
+                      onRemoveImage: isProcessing ? null : onRemoveImage,
+                      onRemoveVideo: isProcessing ? null : onRemoveVideo,
+                      onRemoveNewsPreview:
+                          isProcessing ? null : onRemoveNewsPreview,
                     ),
                   if (paragraph!.images.isNotEmpty ||
                       paragraph!.videos.isNotEmpty ||

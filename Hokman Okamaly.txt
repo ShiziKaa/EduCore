@@ -40,7 +40,10 @@ Esasy aýratynlyklar:
   • Multimediýa jogaplar: surat, wideo, audio.
   • Baş sahypada möhüm habarlar karuseli.
   • Çalt sorag üçin çipler (quick tags).
+  • Soňky gözlegler (max 4) — çep ýokarky burçda, arassalamak mümkin.
   • Jogapdan soň meňzeş sorag teklibi (max 4).
+  • Admin: Konstruktor / Baza / Baş sahypa — bar bolan bazany içinden
+    redaktirlemek mümkin.
 
 
 --------------------------------------------------------------------------------
@@ -88,6 +91,7 @@ Esasy aýratynlyklar:
   • Ilkinji gezek model ýüklenýän bolsa birnäçe sekunt garaşyp bilersiňiz.
   • Baş sahypada salamlaşma, institut logosy, çipler we gözleg meýdany
     görünmeli.
+  • Çep ýokarky burçda soňky gözlegler (bar bolsa) görünýär.
 
 
 --------------------------------------------------------------------------------
@@ -96,13 +100,15 @@ Esasy aýratynlyklar:
 
   1) Baş sahypada soragyňyzy ýazyň we Enter basyň / gözleg düwmesini basyň.
   2) Ýa-da çipleriň birine basyň — ol çip teksti gözlege iberilýär.
-  3) Jogap tapylyp bilýär:
+  3) Soňky gözleglerden birine basyp täzeden gözleg edip bilersiňiz
+     (max 4 ýazgy). «X» bilen taryhy arassalap bilersiňiz.
+  4) Jogap tapylyp bilýär:
        - tekst
        - suratlar (bar bolsa)
-       - wideo (bar bolsa)
+       - wideo (bar bolsa — doly ekranda aýlanyp gaýtalanýar)
        - audio (bar bolsa — jogap bilen awtomatiki aýdyp bilýär)
-  4) Möhüm habarlar karuselinde Baş sahypadaky täzelikleri görüp bilersiňiz.
-  5) Jogapdan soň «Mümkin sizi gyzyklandyrýar» diýen meňzeş soraglar
+  5) Möhüm habarlar karuselinde Baş sahypadaky täzelikleri görüp bilersiňiz.
+  6) Jogapdan soň «Mümkin sizi gyzyklandyrýar» diýen meňzeş soraglar
      çykyp biler — olara basyp täze gözleg edip bilersiňiz.
 
   Eger bazada degişli maglumat ýok bolsa:
@@ -120,8 +126,9 @@ Admin panel gizlin giriziş arkaly açylýar:
   2) Developer ikonkasyny / ýazgysyny TAKMYNAN 3 SEKUNT BASYP SAKLAŇ.
   3) Progress halkasy dolan soň Admin panel açylýar.
 
-Admin panelde iki esasy bölum:
-  • Konstruktor  — resminama / abzaslar / mediýa / bazany täzelemek
+Admin panelde ÜÇ esasy bölüm (segment):
+  • Konstruktor  — täze resminama import / abzaslar / mediýa / baza goşmak
+  • Baza         — bar bolan maglumat bazasyny abzas boýunça redaktirlemek
   • Baş sahypa   — logo, salamlaşma, düşündiriş, çipler
 
 
@@ -143,6 +150,11 @@ Admin panelde iki esasy bölum:
   • Tassyklaň
   • Import soň programma bazany täzeleýär (rebuild)
   • ÜNS BERIŇ: import bar bolan bazany çalyşýar — öňünden eksport ediň
+
+5.3. Awto-backup
+
+  «Bazany täzele» basylanda programma awtomatiki ZIP ätiýaçlyk döredýär
+  (EduCore_DB\backups\). Köne awto-backup-lar çäklendirilýär.
 
 
 --------------------------------------------------------------------------------
@@ -167,6 +179,8 @@ Bu iň möhüm admin prosesi. Ädimleriň tertibini bozmaň.
   Her abzas üçin:
     • Teksti okap düzediň (bir tema = bir abzas).
     • Geregi ýaly surat / wideo / audio goşuň.
+    • Goşulan surat / wideo / audio / preview-ni sebet ikonkasy bilen
+      öçürip bilersiňiz.
     • Möhüm habar bolsa — aşakdaky §8-e serediň.
     • «Abzasy ýatda sakla» basyň — abzas tassyklanan diýlip hasaplanýar.
 
@@ -206,18 +220,48 @@ Bu iň möhüm admin prosesi. Ädimleriň tertibini bozmaň.
 
 
 --------------------------------------------------------------------------------
+6A. BAZA TAB — BAR BOLAN MAGLUMATY REDAKTIRLEMEK
+--------------------------------------------------------------------------------
+
+Bu bölüm bar bolan data/*.txt faýllaryny programma içinde üýtgetmäge
+mümkinçilik berýär (täze import hökman däl).
+
+6A.1. Açmak
+  Admin panelde «Baza» segmentini saýlaň.
+
+6A.2. Gözleg we sanaw
+  • Çep panelde gözleg meýdany — ýazyp başlanyňyzda awtomatiki süzýär
+    (reaktiw gözleg, Enter hökman däl).
+  • «Diňe möhüm» — diňe karusel (möhüm habar) abzaslaryny görkezýär.
+  • Ýokarda sanaw: abzas / möhüm / mediýa / ýitirimli mediýa.
+  • Checkbox bilen abzaslary saýlap «Eksport» bilen .txt çykaryp bilersiňiz.
+
+6A.3. Redaktirlemek
+  • Abzasy saýlaň → tekst üýtgediň → surat / wideo / audio goşuň ýa-da öçüriň.
+  • «Abzasy ýatda sakla» ýa-da «Ählisini ýaz».
+  • «Abzas goş» / «Abzasy göçür» / «Abzasy öçür» mümkin.
+  • Ýazylmadyk üýtgetmeler bilen çykylsa programma duýduryş berýär.
+
+6A.4. Bazany täzelemek
+  Üýtgetmelerden soň «Bazany täzele» — awto-backup + ChromaDB täzeden gurulýar.
+  Soň Baş sahypada karusel we gözleg täzelenen maglumaty görkezýär.
+
+
+--------------------------------------------------------------------------------
 7. MEDIÝA FAÝLLARY — NÄME EDÝÄRLER WE NÄDIP GOŞMALY
 --------------------------------------------------------------------------------
 
-Sag paneldäki hereketler (saýlanan abzas üçin):
+Sag paneldäki hereketler (saýlanan abzas üçin) — Konstruktor we Baza:
 
 7.1. Surat goş
   • Abzasa surat baglaýar.
   • Ulanyjy şol abzasa degişli jogap alanda suratlar görkezilýär.
+  • Preview torunda sebet ikonkasy bilen öçürip bolýar.
 
 7.2. Wideo goş
   • Abzasa wideo baglaýar.
-  • Jogapda wideo görkezilýär / aýtdyrylýar.
+  • Jogapda wideo görkezilýär; doly ekranda aýlanyp gaýtalanýar (loop).
+  • Preview torunda sebet ikonkasy bilen öçürip bolýar.
 
 7.3. Audio goş
   • Abzasa audio baglaýar.
@@ -227,7 +271,7 @@ Sag paneldäki hereketler (saýlanan abzas üçin):
   • Audio sanawynda faýlyň ýanynda sebet (pozmak) ikonkasy bar.
   • Audio öçürilensoň «Audio goş» ýene görünýär.
 
-Mediýa goşandan soň abzasy «Abzasy ýatda sakla» bilen ýazyň —
+Mediýa goşandan ýa-da öçürenden soň abzasy «Abzasy ýatda sakla» bilen ýazyň —
 ýogsa üýtgeşmeler gutarnykly saklanmaz.
 
 
@@ -242,6 +286,13 @@ Näme bolýar?
   • Karusel üçin PREVIEW SURAT hökmany («Preview suraty saýla»).
   • Preview ýok bolsa abzasy ýazmak / finalize etmek mümkin däl.
   • Karuselde iň köp 15 möhüm habar görkezilýär.
+
+Tertip (Baza tab):
+  • El bilen san ýazmak ýok.
+  • Çep abzas sanawynda diňe möhüm habar abzaslarynda süýräp geçiriş
+    (drag) tutawaçy görünýär.
+  • Süýräp tertibi üýtgediň — 1 = ilki karuselde.
+  • «Diňe möhüm» süzgüji bilen tertibi aňsat düzedip bilersiňiz.
 
 Näme üçin ulanylýar?
   Institutyň möhüm täzeliklerini, çärelerini, bildirişlerini Baş sahypada
@@ -279,19 +330,23 @@ Admin panelde «Baş sahypa» tabyny açyň.
 --------------------------------------------------------------------------------
 
   [ ] Täze maglumatdan öň bazany eksport ediň (ätiýaçlyk).
-  [ ] Resminamany import ediň (.docx / .xlsx).
+  [ ] Täze maglumat: Konstruktor → import .docx / .xlsx.
+  [ ] Bar bolan maglumat: Baza tab → gözleg → redaktirle → ýaz.
   [ ] Her abzasy okap düzediň (bir tema = bir abzas).
-  [ ] Mediýany goşuň (surat / wideo / audio — audio max 1).
-  [ ] Möhüm habar bolsa preview surat saýlaň.
+  [ ] Mediýany goşuň ýa-da öçüriň (surat / wideo / audio — audio max 1).
+  [ ] Möhüm habar bolsa preview surat saýlaň; tertibi Baza-da süýräň.
   [ ] Her abzasy «Abzasy ýatda sakla» bilen tassyklanyň
-      ÝA-DA ählisini «Ähli abzaslary ýatda sakla» bilen ýazyň
-      (diňe hemmesiniň dogrudygyna ynanýan bolsaňyz).
-  [ ] «Resminamany Baza goş» → soň «Bazany täzele».
+      ÝA-DA ählisini ýazyň (diňe hemmesiniň dogrudygyna ynanýan bolsaňyz).
+  [ ] Konstruktor: «Resminamany Baza goş» → soň «Bazany täzele».
+  [ ] Baza: üýtgetmelerden soň «Bazany täzele» (awto-backup + rebuild).
   [ ] Baş sahypada synag soraglary beriň.
   [ ] Logo / çipler üýtgedilen bolsa Baş sahypa tabynda «Sakla».
 
 EduCore_DB papkasyny el bilen pozmaň. Programma ýapyk wagtynda
 mediýa faýllarynyň atlaryny el bilen üýtgetmäň — baglanyşyk bozulyp biler.
+
+Belgi: kompýuterde başga programma 8000 portuny eýelän bolsa,
+Bilim Çeşmesi AI serweri açylman bilýär — şol programmany ýapyň.
 
 
 --------------------------------------------------------------------------------
@@ -304,11 +359,14 @@ mediýa faýllarynyň atlaryny el bilen üýtgetmäň — baglanyşyk bozulyp bi
   Maglumat bukjasy:  EduCore_DB
   Gözleg serweri:    search_engine.exe (EduCore_DB içinde)
   Platforma:         Windows (desktop)
+  Build skriptler:   scripts\build_windows.ps1
+                     scripts\build_search_engine.ps1
+                     scripts\sync_search_engine.ps1
 
-Sorag ýa-da ýalňyşlyk bolsa developer maglumatyna ýüz tutup bilersiňiz (Baş sahypanyň aşagynda görkezilýär). 
+Sorag ýa-da ýalňyşlyk bolsa developer maglumatyna ýüz tutup bilersiňiz (Baş sahypanyň aşagynda görkezilýär).
 Programma intäk hem hakyky ulanyjylar tarapyndan test edilýär.
 Egerde testleriňizde ýalňyşlyk bolsa, developer maglumatyna ýüz tutuň, indiki version-a hökman düzediler.
 
 ================================================================================
-  Soňy (2026-09-03)
+  Soňy (2026-09-07)
 ================================================================================

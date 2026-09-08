@@ -25,6 +25,7 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
     controller.initialize().then((_) async {
       if (!mounted) return;
       await controller.seekTo(Duration.zero);
+      await controller.setLooping(true);
       await controller.setVolume(1);
       await controller.play();
       setState(() => _ready = true);
@@ -32,7 +33,15 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
       if (mounted) setState(() => _failed = true);
     });
     controller.addListener(() {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      final value = controller.value;
+      if (value.isInitialized &&
+          value.duration > Duration.zero &&
+          value.position >= value.duration &&
+          !value.isPlaying) {
+        controller.seekTo(Duration.zero);
+      }
+      setState(() {});
     });
   }
 
@@ -66,15 +75,19 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
       ),
       floatingActionButton: _ready && _controller != null
           ? FloatingActionButton(
-              onPressed: () {
+              onPressed: () async {
                 final controller = _controller!;
-                setState(() {
-                  if (controller.value.isPlaying) {
-                    controller.pause();
-                  } else {
-                    controller.play();
+                if (controller.value.isPlaying) {
+                  await controller.pause();
+                } else {
+                  final value = controller.value;
+                  if (value.duration > Duration.zero &&
+                      value.position >= value.duration) {
+                    await controller.seekTo(Duration.zero);
                   }
-                });
+                  await controller.play();
+                }
+                if (mounted) setState(() {});
               },
               child: Icon(
                 _controller!.value.isPlaying

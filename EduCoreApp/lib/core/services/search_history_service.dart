@@ -7,7 +7,7 @@ class SearchHistoryService {
   SearchHistoryService._();
 
   static const _fileName = 'search_history.json';
-  static const maxItems = 12;
+  static const maxItems = 4;
 
   static Future<List<String>> load() async {
     try {

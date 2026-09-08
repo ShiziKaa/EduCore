@@ -132,7 +132,7 @@ class _DeveloperFooterState extends State<DeveloperFooter>
                                 ? const [Color(0xFF3949AB), Color(0xFF1A237E)]
                                 : const [Color(0xFF5CB868), Color(0xFF1F8A40)],
                           ),
-                          borderRadius: BorderRadius.circular(10),
+                          shape: BoxShape.circle,
                         ),
                         child: const Icon(
                           Icons.school_rounded,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -39,9 +40,9 @@ class AdminKbPanelState extends State<AdminKbPanel> {
   final AiServerService _serverService = AiServerService();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _editorController = TextEditingController();
-  final TextEditingController _orderController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   final FocusNode _editorFocus = FocusNode();
+  Timer? _searchDebounce;
 
   List<AdminParagraph> _allParagraphs = [];
   List<AdminParagraph> _visible = [];
@@ -74,9 +75,9 @@ class AdminKbPanelState extends State<AdminKbPanel> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _editorController.dispose();
-    _orderController.dispose();
     _searchFocus.dispose();
     _editorFocus.dispose();
     super.dispose();
@@ -110,7 +111,27 @@ class AdminKbPanelState extends State<AdminKbPanel> {
   void _syncEditorFromSelection() {
     final selected = _selected;
     _editorController.text = selected?.text ?? '';
-    _orderController.text = selected?.newsOrder?.toString() ?? '';
+  }
+
+  void _scheduleSearch() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      if (hasUnsavedChanges) {
+        widget.onToast('Ilki üýtgetmeleri ýazyň.', error: true);
+        return;
+      }
+      _loadParagraphs(preferKey: _selectedKey);
+    });
+  }
+
+  Future<void> _runSearchNow() async {
+    _searchDebounce?.cancel();
+    if (hasUnsavedChanges) {
+      widget.onToast('Ilki üýtgetmeleri ýazyň.', error: true);
+      return;
+    }
+    await _loadParagraphs(preferKey: _selectedKey);
   }
 
   Future<void> _loadParagraphs({String? preferKey}) async {
@@ -165,8 +186,6 @@ class AdminKbPanelState extends State<AdminKbPanel> {
       return;
     }
 
-    _parseOrderInto(selected);
-
     _setProcessing(true);
     try {
       await _ensureServer();
@@ -179,15 +198,6 @@ class AdminKbPanelState extends State<AdminKbPanel> {
     } finally {
       _setProcessing(false);
     }
-  }
-
-  void _parseOrderInto(AdminParagraph paragraph) {
-    final raw = _orderController.text.trim();
-    if (raw.isEmpty) {
-      paragraph.newsOrder = null;
-      return;
-    }
-    paragraph.newsOrder = int.tryParse(raw);
   }
 
   Future<void> _saveAllDirty() async {
@@ -486,7 +496,12 @@ class AdminKbPanelState extends State<AdminKbPanel> {
       if (!value) {
         selected.newsPreview = null;
         selected.newsOrder = null;
-        _orderController.clear();
+      } else if (selected.newsOrder == null) {
+        final maxOrder = _allParagraphs
+            .where((p) => p.isNews && p.newsOrder != null)
+            .map((p) => p.newsOrder!)
+            .fold<int>(0, (a, b) => a > b ? a : b);
+        selected.newsOrder = maxOrder + 1;
       }
       selected.isSaved = false;
     });
@@ -501,6 +516,70 @@ class AdminKbPanelState extends State<AdminKbPanel> {
       selected.isSaved = false;
     });
     _notifyDirty();
+  }
+
+  void _removeImage(String name) {
+    final selected = _selected;
+    if (selected == null) return;
+    setState(() {
+      selected.images = selected.images.where((item) => item != name).toList();
+      selected.isSaved = false;
+    });
+    _notifyDirty();
+  }
+
+  void _removeVideo(String name) {
+    final selected = _selected;
+    if (selected == null) return;
+    setState(() {
+      selected.videos = selected.videos.where((item) => item != name).toList();
+      selected.isSaved = false;
+    });
+    _notifyDirty();
+  }
+
+  void _removeNewsPreview() {
+    final selected = _selected;
+    if (selected == null) return;
+    setState(() {
+      selected.newsPreview = null;
+      selected.isSaved = false;
+    });
+    _notifyDirty();
+  }
+
+  Future<void> _onReorder(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= _visible.length) return;
+    final moved = _visible[oldIndex];
+    if (!moved.isNews) return;
+
+    setState(() {
+      if (newIndex > oldIndex) newIndex -= 1;
+      final item = _visible.removeAt(oldIndex);
+      _visible.insert(newIndex, item);
+
+      var order = 1;
+      for (final paragraph in _visible) {
+        if (!paragraph.isNews) continue;
+        paragraph.newsOrder = order++;
+        paragraph.isSaved = false;
+      }
+    });
+    _notifyDirty();
+
+    _setProcessing(true);
+    try {
+      await _ensureServer();
+      for (final paragraph in _visible.where((p) => p.isNews)) {
+        await _documentService.updateKbParagraph(paragraph);
+      }
+      await _loadParagraphs(preferKey: _selectedKey);
+      widget.onToast('Karusel tertibi ýazyldy.');
+    } catch (e) {
+      widget.onToast(AdminMessages.friendlyError(e), error: true);
+    } finally {
+      _setProcessing(false);
+    }
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -519,19 +598,52 @@ class AdminKbPanelState extends State<AdminKbPanel> {
     return KeyEventResult.ignored;
   }
 
-  Map<String, List<AdminParagraph>> _grouped() {
-    final map = <String, List<AdminParagraph>>{};
-    for (final paragraph in _visible) {
-      final source = paragraph.source ?? 'näbelli';
-      map.putIfAbsent(source, () => []).add(paragraph);
+  Widget _buildParagraphList() {
+    if (_visible.isEmpty) {
+      return Center(
+        child: Text(
+          'Abzas tapylmady',
+          style: TextStyle(color: widget.colors.onSurfaceVariant),
+        ),
+      );
     }
-    return map;
+
+    return ReorderableListView.builder(
+      buildDefaultDragHandles: false,
+      itemCount: _visible.length,
+      onReorder: (oldIndex, newIndex) {
+        if (_isProcessing) return;
+        _onReorder(oldIndex, newIndex);
+      },
+      itemBuilder: (context, index) {
+        final paragraph = _visible[index];
+        final key = ValueKey(_keyOf(paragraph));
+        return _KbParagraphTile(
+          key: key,
+          colors: widget.colors,
+          paragraph: paragraph,
+          index: index,
+          selected: _selectedKey == _keyOf(paragraph),
+          exportSelected: _selectedExportKeys.contains(_keyOf(paragraph)),
+          onSelect: () => _selectParagraph(paragraph),
+          onToggleExport: (value) {
+            setState(() {
+              final itemKey = _keyOf(paragraph);
+              if (value) {
+                _selectedExportKeys.add(itemKey);
+              } else {
+                _selectedExportKeys.remove(itemKey);
+              }
+            });
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final selected = _selected;
-    final grouped = _grouped();
 
     return Focus(
       autofocus: true,
@@ -579,7 +691,7 @@ class AdminKbPanelState extends State<AdminKbPanel> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Karusel üçin abzasy Möhüm habar edip preview saýlaň.',
+                        'Karusel üçin abzasy Möhüm habar edip preview saýlaň. Tertibi süýräp üýtgedip bilersiňiz.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: widget.colors.onTertiaryContainer,
                         ),
@@ -619,7 +731,8 @@ class AdminKbPanelState extends State<AdminKbPanel> {
                                               return;
                                             }
                                             _searchController.clear();
-                                            _loadParagraphs();
+                                            setState(() {});
+                                            _runSearchNow();
                                           },
                                         ),
                                   isDense: true,
@@ -627,77 +740,14 @@ class AdminKbPanelState extends State<AdminKbPanel> {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                 ),
-                                onSubmitted: (_) {
-                                  if (hasUnsavedChanges) {
-                                    widget.onToast(
-                                      'Ilki üýtgetmeleri ýazyň.',
-                                      error: true,
-                                    );
-                                    return;
-                                  }
-                                  _loadParagraphs(preferKey: _selectedKey);
+                                onSubmitted: (_) => _runSearchNow(),
+                                onChanged: (_) {
+                                  setState(() {});
+                                  _scheduleSearch();
                                 },
-                                onChanged: (_) => setState(() {}),
                               ),
                             ),
-                            Expanded(
-                              child: _visible.isEmpty
-                                  ? Center(
-                                      child: Text(
-                                        'Abzas tapylmady',
-                                        style: TextStyle(
-                                          color: widget.colors.onSurfaceVariant,
-                                        ),
-                                      ),
-                                    )
-                                  : ListView(
-                                      children: [
-                                        for (final entry in grouped.entries) ...[
-                                          Padding(
-                                            padding: const EdgeInsets.fromLTRB(
-                                              16,
-                                              10,
-                                              16,
-                                              4,
-                                            ),
-                                            child: Text(
-                                              entry.key,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .labelMedium
-                                                  ?.copyWith(
-                                                    color: widget
-                                                        .colors
-                                                        .onSurfaceVariant,
-                                                  ),
-                                            ),
-                                          ),
-                                          for (final paragraph in entry.value)
-                                            _KbParagraphTile(
-                                              colors: widget.colors,
-                                              paragraph: paragraph,
-                                              selected:
-                                                  _selectedKey == _keyOf(paragraph),
-                                              exportSelected: _selectedExportKeys
-                                                  .contains(_keyOf(paragraph)),
-                                              onSelect: () =>
-                                                  _selectParagraph(paragraph),
-                                              onToggleExport: (value) {
-                                                setState(() {
-                                                  final key = _keyOf(paragraph);
-                                                  if (value) {
-                                                    _selectedExportKeys.add(key);
-                                                  } else {
-                                                    _selectedExportKeys
-                                                        .remove(key);
-                                                  }
-                                                });
-                                              },
-                                            ),
-                                        ],
-                                      ],
-                                    ),
-                            ),
+                            Expanded(child: _buildParagraphList()),
                           ],
                         ),
                       ),
@@ -792,16 +842,22 @@ class AdminKbPanelState extends State<AdminKbPanel> {
                                   ),
                                   const SizedBox(height: 12),
                                   FilledButton.icon(
-                                    onPressed:
-                                        _isProcessing ? null : () => _addMedia(_KbMediaType.image),
-                                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                                    onPressed: _isProcessing
+                                        ? null
+                                        : () => _addMedia(_KbMediaType.image),
+                                    icon: const Icon(
+                                      Icons.add_photo_alternate_outlined,
+                                    ),
                                     label: const Text('Surat goş'),
                                   ),
                                   const SizedBox(height: 8),
                                   FilledButton.icon(
-                                    onPressed:
-                                        _isProcessing ? null : () => _addMedia(_KbMediaType.video),
-                                    icon: const Icon(Icons.video_library_outlined),
+                                    onPressed: _isProcessing
+                                        ? null
+                                        : () => _addMedia(_KbMediaType.video),
+                                    icon: const Icon(
+                                      Icons.video_library_outlined,
+                                    ),
                                     label: const Text('Wideo goş'),
                                   ),
                                   if (selected.audios.isEmpty) ...[
@@ -810,7 +866,9 @@ class AdminKbPanelState extends State<AdminKbPanel> {
                                       onPressed: _isProcessing
                                           ? null
                                           : () => _addMedia(_KbMediaType.audio),
-                                      icon: const Icon(Icons.audiotrack_outlined),
+                                      icon: const Icon(
+                                        Icons.audiotrack_outlined,
+                                      ),
                                       label: const Text('Audio goş'),
                                     ),
                                   ],
@@ -819,7 +877,7 @@ class AdminKbPanelState extends State<AdminKbPanel> {
                                     contentPadding: EdgeInsets.zero,
                                     title: const Text('Möhüm habar'),
                                     subtitle: const Text(
-                                      'Baş sahypadaky karusel',
+                                      'Baş sahypadaky karusel — tertibi çep sanawda süýräň',
                                       style: TextStyle(fontSize: 12),
                                     ),
                                     value: selected.isNews,
@@ -837,21 +895,20 @@ class AdminKbPanelState extends State<AdminKbPanel> {
                                             : 'Preview suraty üýtget',
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
-                                    TextField(
-                                      controller: _orderController,
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Karusel tertibi (1 = ilki)',
-                                        isDense: true,
-                                        border: OutlineInputBorder(),
+                                    if (selected.newsOrder != null) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Karusel tertibi: ${selected.newsOrder}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: widget
+                                                  .colors
+                                                  .onSurfaceVariant,
+                                            ),
                                       ),
-                                      onChanged: (_) {
-                                        selected.isSaved = false;
-                                        _notifyDirty();
-                                        setState(() {});
-                                      },
-                                    ),
+                                    ],
                                   ],
                                   const SizedBox(height: 12),
                                   if (selected.images.isNotEmpty ||
@@ -870,6 +927,13 @@ class AdminKbPanelState extends State<AdminKbPanel> {
                                       colors: widget.colors,
                                       onRemoveAudio:
                                           _isProcessing ? null : _removeAudio,
+                                      onRemoveImage:
+                                          _isProcessing ? null : _removeImage,
+                                      onRemoveVideo:
+                                          _isProcessing ? null : _removeVideo,
+                                      onRemoveNewsPreview: _isProcessing
+                                          ? null
+                                          : _removeNewsPreview,
                                     ),
                                   const SizedBox(height: 12),
                                   FilledButton.tonalIcon(
@@ -1009,8 +1073,10 @@ class _KbStatsBar extends StatelessWidget {
 
 class _KbParagraphTile extends StatelessWidget {
   const _KbParagraphTile({
+    super.key,
     required this.colors,
     required this.paragraph,
+    required this.index,
     required this.selected,
     required this.exportSelected,
     required this.onSelect,
@@ -1019,6 +1085,7 @@ class _KbParagraphTile extends StatelessWidget {
 
   final ColorScheme colors;
   final AdminParagraph paragraph;
+  final int index;
   final bool selected;
   final bool exportSelected;
   final VoidCallback onSelect;
@@ -1046,11 +1113,33 @@ class _KbParagraphTile extends StatelessWidget {
       ),
       subtitle: Row(
         children: [
-          if (!paragraph.isSaved)
+          if ((paragraph.source ?? '').isNotEmpty)
+            Flexible(
+              child: Text(
+                paragraph.source!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          if (!paragraph.isSaved) ...[
+            const SizedBox(width: 4),
             Icon(Icons.edit, size: 14, color: colors.tertiary),
+          ],
           if (paragraph.isNews) ...[
             const SizedBox(width: 4),
             Icon(Icons.campaign_outlined, size: 14, color: colors.tertiary),
+            if (paragraph.newsOrder != null) ...[
+              const SizedBox(width: 2),
+              Text(
+                '#${paragraph.newsOrder}',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.tertiary,
+                ),
+              ),
+            ],
           ],
           if (paragraph.missingMedia.isNotEmpty) ...[
             const SizedBox(width: 4),
@@ -1058,6 +1147,15 @@ class _KbParagraphTile extends StatelessWidget {
           ],
         ],
       ),
+      trailing: paragraph.isNews
+          ? ReorderableDragStartListener(
+              index: index,
+              child: Icon(
+                Icons.drag_handle_rounded,
+                color: colors.onSurfaceVariant,
+              ),
+            )
+          : null,
       onTap: onSelect,
     );
   }

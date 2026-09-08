@@ -27,8 +27,8 @@ class NewsCarousel extends StatefulWidget {
 
   static double preferredWidth(double screenWidth) {
     if (screenWidth < 560) return 200;
-    if (screenWidth < 900) return 240;
-    return (screenWidth * 0.22).clamp(240.0, 300.0);
+    if (screenWidth < 900) return 230;
+    return (screenWidth * 0.20).clamp(230.0, 280.0);
   }
 
   static double preferredCardHeight(double screenHeight) {

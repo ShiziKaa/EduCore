@@ -12,7 +12,7 @@
 ;     Flutter runtime DLLs + data\
 ; =============================================================================
 
-#define MyAppName "Bilim ?e?mesi"
+#define MyAppName "Bilim Cesmesi"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Akmammedow Akmammet"
 #define MyAppURL "https://tdbsi.edu.tm"
@@ -66,10 +66,10 @@ Source: "Hokman Okamaly.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
-    WorkingDir: "{app}"; Comment: "{#MyAppName} — ?erli g?zleg programmasy"
+    WorkingDir: "{app}"; Comment: "{#MyAppName} — yerli gozleg programmasy"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
     WorkingDir: "{app}"; Tasks: desktopicon; Comment: "{#MyAppName}"
-Name: "{autoprograms}\{#MyAppName}\H?kman Okamaly"; Filename: "{app}\Hokman Okamaly.txt"; \
+Name: "{autoprograms}\{#MyAppName}\Hokman Okamaly"; Filename: "{app}\Hokman Okamaly.txt"; \
     Comment: "Gurnama we admin gollanmasy"
 
 [Run]

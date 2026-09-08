@@ -104,17 +104,22 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 
 # Copy complete AI bundle (search_engine.exe + _internal + models) next to educore.exe.
 # Flutter assets cannot bundle _internal reliably, so CMake handles this.
+# Skip wipe+recopy when the bundle is already present: full EduCore_DB is huge and
+# MSBuild/Flutter INSTALL often fails mid-copy. Refresh via scripts/sync_search_engine.ps1.
 set(EDUCORE_DB_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../assets/EduCore_DB")
 if(EXISTS "${EDUCORE_DB_SOURCE}/search_engine.exe")
   install(CODE "
-    file(REMOVE_RECURSE \"${CMAKE_INSTALL_PREFIX}/EduCore_DB\")
+    set(_educore_db_dst \"${CMAKE_INSTALL_PREFIX}/EduCore_DB\")
+    if(EXISTS \"\${_educore_db_dst}/search_engine.exe\")
+      message(STATUS \"EduCore_DB already present; skip reinstall (use sync_search_engine.ps1 to refresh)\")
+    else()
+      message(STATUS \"Installing EduCore_DB bundle (first-time / missing)...\")
+      file(COPY \"${EDUCORE_DB_SOURCE}/\" DESTINATION \"\${_educore_db_dst}\"
+        PATTERN \".git\" EXCLUDE
+        PATTERN \".gitignore\" EXCLUDE
+        PATTERN \".gitkeep\" EXCLUDE)
+    endif()
   " COMPONENT Runtime)
-  install(DIRECTORY "${EDUCORE_DB_SOURCE}/"
-    DESTINATION "${CMAKE_INSTALL_PREFIX}/EduCore_DB"
-    COMPONENT Runtime
-    PATTERN ".git" EXCLUDE
-    PATTERN ".gitignore" EXCLUDE
-    PATTERN ".gitkeep" EXCLUDE)
 endif()
 
 # Install the AOT library on non-Debug builds only.
